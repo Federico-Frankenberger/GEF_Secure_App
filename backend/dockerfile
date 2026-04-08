@@ -1,0 +1,32 @@
+# ── Etapa 1: Build con Gradle ─────────────────────────────────────────────────
+FROM eclipse-temurin:21-jdk-alpine AS builder
+
+WORKDIR /app
+
+# Copiar wrapper primero para cachear dependencias
+COPY gradlew .
+COPY gradle/ gradle/
+COPY build.gradle .
+COPY settings.gradle .
+
+RUN chmod +x gradlew
+RUN ./gradlew dependencies --no-daemon -q
+
+# Copiar fuentes y compilar
+COPY src/ src/
+RUN ./gradlew bootJar -x test --no-daemon
+
+# ── Etapa 2: Runtime mínimo ───────────────────────────────────────────────────
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+# Usuario sin privilegios de root
+RUN addgroup -S gef && adduser -S gef -G gef
+USER gef
+
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-XX:+UseZGC", "-Xmx512m", "-jar", "app.jar"]

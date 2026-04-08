@@ -1,0 +1,1208 @@
+{
+  "name": "Pipeline de Gestión Automatizada de Vulnerabilidades (VMP)",
+  "nodes": [
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.priority }}",
+                    "rightValue": "CRITICAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0df38121-7f37-496f-a092-5710456ba550"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Alerta Inmediata (Slack)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "53cd1278-c10b-4e7c-8eff-da537d3266ab",
+                    "leftValue": "={{ $json.priority }}",
+                    "rightValue": "HIGH",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Atención Urgente (Slack)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f7be6269-34f6-4e3c-9ff2-d791f5df0804",
+                    "leftValue": "={{ $json.priority }}",
+                    "rightValue": "MEDIUM",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Mantenimiento Programado"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6c0c2d6d-0361-4dc2-b268-4694de1c1cb2",
+                    "leftValue": "={{ $json.priority }}",
+                    "rightValue": "LOW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Registro Preventivo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -256,
+        752
+      ],
+      "id": "2f703447-ffd9-4501-bb46-5367d55b8e8e",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AB7JZ05MK",
+          "mode": "id"
+        },
+        "text": "={{ $json.priority == 'CRITICAL' ? '🚨' : ($json.priority == 'HIGH' ? '🔴' : '⚠️') }} *ALERTA DE SEGURIDAD: {{ $json.priority }}* {{ $json.priority == 'CRITICAL' ? '🚨' : ($json.priority == 'HIGH' ? '🔴' : '⚠️') }}\n---\n🖥️ *Activo:* {{ $json.asset_name }}\n📦 *Software:* {{ $json.software }} (v{{ $json.version_instalada }})\n\n🆔 *Identificadores:*\n• *CVE:* `{{ $json.cve_id || 'N/A' }}`\n• *GHSA:* `{{ $json.ghsa_id }}`\n⭐ *CVSS:* {{ $json.cvss }}\n\n🚀 *¿Explotado activamente (CISA)?:* {{ $json.is_cisa_kev ? \"SÍ ⚠️\" : \"No reportado\" }}\n---\n📝 *Plan de Acción Sugerido:*\n{{ $json.action_plan }}\n\n⏰ *Procesado:* {{ $json.processed_at }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        176,
+        752
+      ],
+      "id": "34d7222f-348b-4218-a28f-0eaf0a172a7a",
+      "name": "Send a message",
+      "webhookId": "48683959-9bd6-4e80-bf95-638013bc9f9c",
+      "credentials": {
+        "slackApi": {
+          "id": "Tp9lvfadC3DwQcig",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## FLUJO PRINCIPAL\n\n",
+        "height": 80
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -656,
+        -416
+      ],
+      "typeVersion": 1,
+      "id": "8b5301ff-6000-450f-9b1f-cd66e9800fad",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## FLUJO INYECTOR \n\n",
+        "height": 80
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -416,
+        -944
+      ],
+      "typeVersion": 1,
+      "id": "5e98c41c-6666-493a-b186-3b12a9165602",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## FLUJO ERRORES\n\n\n",
+        "height": 80
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        784,
+        -896
+      ],
+      "typeVersion": 1,
+      "id": "ae6f6c22-dada-4d08-8e50-8eaa82449173",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -736,
+        -304
+      ],
+      "id": "00be6078-6f4e-46f3-9f6f-c71363772598",
+      "name": "Scan_Scheduler"
+    },
+    {
+      "parameters": {
+        "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -528,
+        -304
+      ],
+      "id": "b72c6cb6-8c0d-41cd-8da5-cc8dfcc56eb8",
+      "name": "Fetch_CISA_KEV",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "url": "https://api.github.com/advisories",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -304,
+        -304
+      ],
+      "id": "f1963036-bff5-4267-a419-cdab4f619c2f",
+      "name": "Fetch_GitHub_Advisories",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oyQSrv4S2JP642Oj",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "vulnerabilities",
+        "include": "selectedOtherFields",
+        "fieldsToInclude": "ghsa_id, cve_id, cvss_severities",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -432
+      ],
+      "id": "c5807694-5903-4d2b-8e8e-cf5610273a1a",
+      "name": "Extract_Advisory_Items"
+    },
+    {
+      "parameters": {
+        "compare": "selectedFields",
+        "fieldsToCompare": "vulnerabilities.package.name, ghsa_id",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -432
+      ],
+      "id": "c54f653c-ea11-4d84-b191-373cbf92e3e0",
+      "name": "Deduplicate_Advisories"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, name, criticality, software, ecosystem, version \nFROM assets \nWHERE software = '{{ $json.vulnerabilities.package.name }}'\n  AND ecosystem = '{{ $json.vulnerabilities.package.ecosystem }}'\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        112,
+        -224
+      ],
+      "id": "f3f86ae5-3238-41c7-bb73-41cd0d9b01ad",
+      "name": "Check_Internal_Assets",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ !!$json.name }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    },
+                    "id": "e22fc4b6-1f8e-4e35-b0e0-c8cfb2218b53"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "63970d36-ac08-43e8-a169-5a6c6d853b59",
+                    "leftValue": "={{ !!$json.name }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        320,
+        -224
+      ],
+      "id": "12d83bef-bae1-4147-9f1c-2aa430e587d1",
+      "name": "Filter_Matched_Assets"
+    },
+    {
+      "parameters": {
+        "compare": "selectedFields",
+        "fieldsToCompare": "software,ecosystem",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        528,
+        -224
+      ],
+      "id": "7c22a8fe-2726-4d8f-83f5-03e53c3346ee",
+      "name": "Deduplicate_Target_Assets"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "vulnerabilities.package.name",
+              "field2": " "
+            }
+          ]
+        },
+        "joinMode": "enrichInput1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        672,
+        -416
+      ],
+      "id": "e34a3ecd-7c53-4ee9-869d-287513e03da9",
+      "name": "Enrich_Vulnerability_Data"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.software }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "empty",
+                      "singleValue": true
+                    },
+                    "id": "bd614c44-1435-41d5-aa93-55197cbbf501"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ac023ae3-c1f2-443c-87f1-7a5dd8606867",
+                    "leftValue": "={{ $json.software }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        -240
+      ],
+      "id": "f871ebab-8ccc-4b03-9ec7-3b4c8e3c5c3b",
+      "name": "Validate_Asset_Match"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO vulnerabilities_ignored \n(package_name, ecosystem, vulnerable_range, patched_version, ignored_at, hit_count)\nVALUES (\n  '{{ $json.vulnerabilities.package.name }}', \n  '{{ $json.vulnerabilities.package.ecosystem }}', \n  '{{ $json.vulnerabilities.vulnerable_version_range }}', \n  '{{ $json.first_patched_version || \"N/A\" }}',\n  NOW(),\n  1\n)\nON CONFLICT (package_name, vulnerable_range) \nDO UPDATE SET \n    ignored_at = NOW(),\n    hit_count = vulnerabilities_ignored.hit_count + 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1392,
+        -384
+      ],
+      "id": "81b51505-b7c7-4836-be0b-4bf83cd36ceb",
+      "name": "Log_Ignored_Vulnerabilities",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Obtener catálogo de CISA KEV\nconst cisaNodeData = $('Fetch_CISA_KEV').first().json;\nconst cisaCatalog = cisaNodeData.vulnerabilities || [];\n\nreturn items.map(inputItem => {\n    const item = inputItem.json;\n    \n    // --- 1. LÓGICA DE VERSIONES (Filtro inicial) ---\n    const vData = item.vulnerabilities || {};\n    const miVersion = item.version || \"0.0.0\"; // Viene de tu DB\n    const parcheVersion = vData.first_patched_version;\n    \n    let esVulnerableReal = true;\n\n    // Solo descartamos si la versión instalada es igual o mayor a la parcheada\n    if (parcheVersion && miVersion !== \"0.0.0\") {\n        if (miVersion.localeCompare(parcheVersion, undefined, { numeric: true }) >= 0) {\n            esVulnerableReal = false; \n        }\n    }\n\n    if (!esVulnerableReal) return null;\n\n    // --- 2. EXTRACCIÓN DE CVSS ---\n    const cvssScore = parseFloat(\n        item.cvss_severities?.cvss_v4?.score || \n        item.cvss_severities?.cvss_v3?.score || \n        0.0\n    );\n\n    const idGhsa = item.ghsa_id || \"N/A\";\n    const idCve = item.cve_id || \"N/A\";\n\n    // --- 3. MATCH CISA KEV ---\n    const cisaMatch = (idCve !== \"N/A\") \n        ? cisaCatalog.find(v => v.cveID && v.cveID.trim().toUpperCase() === idCve.trim().toUpperCase())\n        : null;\n    const esExplotado = !!cisaMatch;\n\n    // --- 4. LÓGICA DE PRIORIDAD (COHERENTE) ---\n    let prioridadFinal = \"LOW\";\n    \n    // Nivel 1: Por Score CVSS\n    if (cvssScore >= 7.0) {\n        prioridadFinal = \"HIGH\";\n    } else if (cvssScore >= 4.0) {\n        prioridadFinal = \"MEDIUM\";\n    }\n\n    // Nivel 2: Por ausencia de Parche (Zero-Day escala a CRITICAL)\n    if (!parcheVersion) {\n        prioridadFinal = \"CRITICAL\";\n    }\n\n    // Nivel 3: Por CISA KEV (Explotación activa escala a CRITICAL)\n    if (esExplotado) {\n        prioridadFinal = \"CRITICAL\";\n    }\n\n    // --- 5. ACTION PLAN ---\n    let plan = \"\";\n    if (esExplotado) {\n        plan = `🚨 EMERGENCIA: Vulnerabilidad explotada activamente (CISA KEV). AISLAR el activo '${item.name}' y aplicar parche v${parcheVersion || 'urgente'} de forma inmediata.`;\n    } else if (prioridadFinal === \"CRITICAL\" && !parcheVersion) {\n        plan = `💀 RIESGO CRÍTICO (Zero-Day): No hay parche disponible para el software '${vData.package?.name}'. Incrementar monitoreo de logs y restringir acceso al activo. CVSS: ${cvssScore}`;\n    } else if (prioridadFinal === \"HIGH\") {\n        plan = `⚠️ ALERTA: Riesgo alto detectado. Score CVSS: ${cvssScore}. Se requiere programar actualización a v${parcheVersion} en la próxima ventana de mantenimiento.`;\n    } else {\n        plan = `🔍 OBSERVACIÓN: Riesgo ${prioridadFinal.toLowerCase()} (${cvssScore}). Verificar compatibilidad con la versión parcheada v${parcheVersion}.`;\n    }\n\n    return {\n        json: {\n            asset_id: item.id,\n            asset_name: item.name,\n            software: vData.package?.name || item.software || \"Desconocido\",\n            version_instalada: miVersion,\n            ghsa_id: idGhsa,\n            cve_id: idCve,\n            cvss: cvssScore,\n            priority: prioridadFinal,\n            is_cisa_kev: esExplotado,\n            action_plan: plan,\n            processed_at: new Date().toISOString()\n        }\n    };\n}).filter(x => x !== null);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        -160
+      ],
+      "id": "4a5f1faf-0ff7-44b9-9c24-f6eaef9c476c",
+      "name": "Risk_Assessment_Engine"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.vulnerabilities_audit \n(detected_at, asset, cve_id, ghsa_id, cvss, exploited, priority, decision, assigned_to, status) \nVALUES (\n  NOW(), \n  '{{ $json.asset_name.replace(/'/g, \"''\") }}', \n  '{{ $json.cve_id }}', \n  '{{ $json.ghsa_id }}', -- Agregado aquí con comillas porque es texto\n  {{ $json.cvss }}, \n  {{ $json.is_cisa_kev }}, \n  '{{ $json.priority }}', \n  '{{ $json.action_plan.replace(/'/g, \"''\") }}', \n  'SIN_ASIGNAR', \n  'DETECTADA'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1392,
+        64
+      ],
+      "id": "4cffc514-9b09-4344-91bd-89ccc3ad8a42",
+      "name": "Persist_Audit_Findings",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "assets",
+          "mode": "list",
+          "cachedResultName": "assets"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Deduplicate_Target_Assets').item.json.id }}",
+            "last_scan": "={{ $now }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "software",
+              "displayName": "software",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "ecosystem",
+              "displayName": "ecosystem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "version",
+              "displayName": "version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "criticality",
+              "displayName": "criticality",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_scan",
+              "displayName": "last_scan",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1392,
+        272
+      ],
+      "id": "bbd49770-d7ad-45f8-867c-c4a2e3a24fb2",
+      "name": "Update_Asset_Audit_Timestamp",
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1664,
+        -240
+      ],
+      "id": "4c528bcd-7462-4aa0-9f4f-9f06e80e7e57",
+      "name": "Consolidate_Audit_Results"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = items;\n\nlet metrics = {\n    total_items: allItems.length,\n    auditados: 0,\n    ignorados: 0,\n    criticos: 0,\n    altas: 0,\n    medias: 0,\n    bajas: 0\n};\n\nfor (const item of allItems) {\n    const data = item.json;\n\n    // Buscamos el valor de criticidad en cualquier variante de nombre\n    // Esto cubre 'criticality', 'Criticality', 'PRIORITY', etc.\n    const rawCriticality = data.criticality || data.Criticality || data.priority || data.Priority || null;\n\n    // Si encontramos una criticidad definida, es un auditado\n    if (rawCriticality !== null) {\n        metrics.auditados++;\n        \n        const sev = rawCriticality.toString().toUpperCase();\n        \n        if (sev === 'CRITICAL') metrics.criticos++;\n        else if (sev === 'HIGH') metrics.altas++;\n        else if (sev === 'MEDIUM') metrics.medias++;\n        else if (sev === 'LOW') metrics.bajas++;\n    } \n    // Si no tiene nada de eso, verificamos si es de la rama de ignorados (JSON de GitHub)\n    else {\n        metrics.ignorados++;\n    }\n}\n\nreturn [{\n    json: {\n        ejecucion_stats: {\n            resumen: `Análisis finalizado: ${metrics.total_items} registros evaluados.`,\n            detalle: metrics,\n            status_sistema: metrics.criticos > 0 ? \"⚠️ ACCIÓN REQUERIDA\" : \"✅ ESTABLE\",\n            fecha: new Date().toLocaleString()\n        }\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        -240
+      ],
+      "id": "57f6b115-05d5-4201-88ef-2ea65097e6b1",
+      "name": "Compute_Audit_Metrics"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AB7JZ05MK",
+          "mode": "id"
+        },
+        "text": "=\n🚀 *GEF Secure - Reporte de Escaneo - {{ $json.ejecucion_stats.fecha }}*\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📊 *Resumen General:*\n• Total evaluados: {{ $json.ejecucion_stats.detalle.total_items }}\n• Ignorados (Filtro): {{ $json.ejecucion_stats.detalle.ignorados }}\n• Enviados a Auditoría: {{ $json.ejecucion_stats.detalle.auditados }}\n\n *Detalle de Riesgos Auditados:*\n• 🔴 Críticos: *{{ $json.ejecucion_stats.detalle.criticos }}*\n• 🟠 Altos: {{ $json.ejecucion_stats.detalle.altas }}\n• 🟡 Medios: {{ $json.ejecucion_stats.detalle.medias }}\n• 🔵 Bajos: {{ $json.ejecucion_stats.detalle.bajas }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━\nEstado Final: *{{ $json.ejecucion_stats.status_sistema }}*\n\n🔗 *<http://localhost:3000/|Ir a la Gestión de Vulnerabilidades>*",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        2144,
+        -352
+      ],
+      "id": "59764e24-1945-4027-b21d-d9f41bae6720",
+      "name": "Notify_Security_Status",
+      "webhookId": "48683959-9bd6-4e80-bf95-638013bc9f9c",
+      "credentials": {
+        "slackApi": {
+          "id": "Tp9lvfadC3DwQcig",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.scan_reports (\n    executed_at, -- ¡No te olvides de esta!\n    total_detected, \n    audited, \n    ignored, \n    criticals, \n    highs, \n    mediums, \n    lows, \n    system_status, \n    report_message\n) \nVALUES (\n    NOW(), -- Función de Postgres para la fecha actual\n    {{ $json.ejecucion_stats.detalle.total_items }}, \n    {{ $json.ejecucion_stats.detalle.auditados }}, \n    {{ $json.ejecucion_stats.detalle.ignorados }}, \n    {{ $json.ejecucion_stats.detalle.criticos }}, \n    {{ $json.ejecucion_stats.detalle.altas }}, \n    {{ $json.ejecucion_stats.detalle.medias }}, \n    {{ $json.ejecucion_stats.detalle.bajas }}, \n    '{{ $json.ejecucion_stats.status_sistema }}', \n    '{{ $json.ejecucion_stats.resumen.replace(/'/g, \"''\") }}'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2144,
+        -144
+      ],
+      "id": "bb0e0541-e55a-416f-b030-515d56f82512",
+      "name": "Persist_Scan_Statistics",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.github.com/advisories",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "severity",
+              "value": "critical"
+            },
+            {
+              "name": "per_page",
+              "value": "100"
+            },
+            {
+              "name": "type",
+              "value": "reviewed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -400,
+        -784
+      ],
+      "id": "e6dd0235-9b66-422d-9488-5ec68599adc7",
+      "name": "Fetch_Global_Advisories",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oyQSrv4S2JP642Oj",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.assets(\n    name, software, ecosystem, version, criticality, last_scan, description\n)\nVALUES (\n    '{{ $json.name }}', \n    '{{ $json.software }}', \n    '{{ $json.ecosystem }}', \n    '{{ $json.version }}', \n    '{{ $json.criticality }}', \n    '{{ $json.last_scan }}', \n    '{{ $json.description.replace(/'/g, \"''\") }}'\n)\nON CONFLICT (software, version) \nDO UPDATE SET \n    last_scan = EXCLUDED.last_scan,\n    description = EXCLUDED.description;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        112,
+        -784
+      ],
+      "id": "651e63f2-20c7-43ca-a1d0-4add63bc574c",
+      "name": "Upsert_Test_Asset",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        864,
+        -768
+      ],
+      "id": "2497eef3-9f44-409a-ab55-8bb7cfbe2279",
+      "name": "Error_Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.system_errors (\n    node_name, \n    error_message, \n    workflow_id, \n    execution_id\n) \nVALUES (\n    '{{ $json.execution.lastNodeExecuted }}', \n    '{{ $json.execution.error.message }}', \n    '{{ $json.workflow.id }}', \n    '{{ $json.execution.id }}'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1216,
+        -896
+      ],
+      "id": "70c5d438-b876-47a9-a20c-a1660981429d",
+      "name": "Log_System_Failure",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AB7JZ05MK",
+          "mode": "id"
+        },
+        "text": "=⚠️ GEF Secure - Fallo de Infraestructura\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🧱 Nodo: {{ $json.execution.lastNodeExecuted }}\n📝 Error: {{ $json.execution.error.message }}\n🆔 ID Ejecución: {{ $json.execution.id }}\n━━━━━━━━━━━━━━━━━━━━━━━━━\nEste error ha sido persistido automáticamente.",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        1216,
+        -688
+      ],
+      "id": "57197173-958c-4c1e-ad7e-d92280231da7",
+      "name": "Notify_Dev_Slack",
+      "webhookId": "48683959-9bd6-4e80-bf95-638013bc9f9c",
+      "credentials": {
+        "slackApi": {
+          "id": "Tp9lvfadC3DwQcig",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Recolectamos todos los paquetes válidos de los 100 resultados\nconst validPool = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  // Verificamos que tenga la estructura de GitHub Advisories\n  if (data.vulnerabilities && Array.isArray(data.vulnerabilities)) {\n    // Buscamos dentro de ese advisory si hay un paquete con nombre y ecosistema\n    const found = data.vulnerabilities.find(v => v.package?.name && v.package?.ecosystem);\n    \n    if (found) {\n      validPool.push({\n        summary: data.summary,\n        severity: data.severity,\n        packageName: found.package.name,\n        ecosystem: found.package.ecosystem\n      });\n    }\n  }\n}\n\n// 2. Si la API no devolvió nada válido, tiramos un array vacío (evita que el flujo explote)\nif (validPool.length === 0) return [];\n\n// 3. SELECCIÓN ALEATORIA: Elegimos uno al azar del pool de 100\nconst selected = validPool[Math.floor(Math.random() * validPool.length)];\n\n// 4. Devolvemos el formato exacto que espera tu SQL (Nodo 3)\nreturn [{\n  json: {\n    name: `[TEST] - ${selected.packageName.toUpperCase()} - Simulación de Activo`,\n    software: selected.packageName,\n    ecosystem: selected.ecosystem,\n    version: \"0.0.1\", // Versión fija para forzar el match de riesgo en la tesis\n    criticality: selected.severity || \"critical\",\n    last_scan: new Date().toISOString(),\n    description: \"Inyección aleatoria - Test de consistencia GEF Secure\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        -784
+      ],
+      "id": "9d9f2671-a212-4836-9e6f-e26f3f83d0ff",
+      "name": "Random_Asset_Selector",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AB7JZ05MK",
+          "mode": "id"
+        },
+        "text": "=📥 GEF Secure - Inyección de Activo de Prueba\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🛡️ Activo: {{ $json.name }}\n📦 Software: {{ $json.software }}\n🏷️ Ecosistema: {{ $json.ecosystem }}\n🔢 Versión: {{ $json.version }}\n⚠️ Severidad Original: {{ $json.criticality.toUpperCase() }}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ El inventario ha sido actualizado. El sistema está listo para el ciclo de auditoría.",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        112,
+        -944
+      ],
+      "id": "2f4d509f-d574-45b5-ae4d-cc14439c3e0b",
+      "name": "Notify_Dev_Slack1",
+      "webhookId": "48683959-9bd6-4e80-bf95-638013bc9f9c",
+      "credentials": {
+        "slackApi": {
+          "id": "Tp9lvfadC3DwQcig",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        -784
+      ],
+      "id": "6361899e-fcb5-40bc-999b-9f082a1bedd5",
+      "name": "Manual_Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        []
+      ]
+    },
+    "Send a message": {
+      "main": [
+        []
+      ]
+    },
+    "Scan_Scheduler": {
+      "main": [
+        [
+          {
+            "node": "Fetch_CISA_KEV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch_CISA_KEV": {
+      "main": [
+        [
+          {
+            "node": "Fetch_GitHub_Advisories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch_GitHub_Advisories": {
+      "main": [
+        [
+          {
+            "node": "Extract_Advisory_Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract_Advisory_Items": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate_Advisories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate_Advisories": {
+      "main": [
+        [
+          {
+            "node": "Check_Internal_Assets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enrich_Vulnerability_Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check_Internal_Assets": {
+      "main": [
+        [
+          {
+            "node": "Filter_Matched_Assets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter_Matched_Assets": {
+      "main": [
+        [
+          {
+            "node": "Enrich_Vulnerability_Data",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Deduplicate_Target_Assets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate_Target_Assets": {
+      "main": [
+        [
+          {
+            "node": "Enrich_Vulnerability_Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Enrich_Vulnerability_Data": {
+      "main": [
+        [
+          {
+            "node": "Validate_Asset_Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate_Asset_Match": {
+      "main": [
+        [
+          {
+            "node": "Log_Ignored_Vulnerabilities",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Consolidate_Audit_Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Risk_Assessment_Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log_Ignored_Vulnerabilities": {
+      "main": [
+        []
+      ]
+    },
+    "Risk_Assessment_Engine": {
+      "main": [
+        [
+          {
+            "node": "Consolidate_Audit_Results",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Persist_Audit_Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist_Audit_Findings": {
+      "main": [
+        [
+          {
+            "node": "Update_Asset_Audit_Timestamp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update_Asset_Audit_Timestamp": {
+      "main": [
+        []
+      ]
+    },
+    "Consolidate_Audit_Results": {
+      "main": [
+        [
+          {
+            "node": "Compute_Audit_Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute_Audit_Metrics": {
+      "main": [
+        [
+          {
+            "node": "Notify_Security_Status",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Persist_Scan_Statistics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch_Global_Advisories": {
+      "main": [
+        [
+          {
+            "node": "Random_Asset_Selector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert_Test_Asset": {
+      "main": [
+        []
+      ]
+    },
+    "Error_Trigger": {
+      "main": [
+        [
+          {
+            "node": "Log_System_Failure",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify_Dev_Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Random_Asset_Selector": {
+      "main": [
+        [
+          {
+            "node": "Upsert_Test_Asset",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify_Dev_Slack1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual_Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch_Global_Advisories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "f2d0c404-9843-423a-b52e-e98805afec36",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f41e530837aaae23c763e8e706d86412be1009909c36bfb090df8e37ae09e7cf"
+  },
+  "id": "Ix00EX3vq6sfnRo7zGepF",
+  "tags": []
+}
