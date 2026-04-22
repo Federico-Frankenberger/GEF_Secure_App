@@ -1,3 +1,18 @@
+// ── Environment ───────────────────────────────────────────────────────────────
+export interface Environment {
+  id: number
+  name: string
+  businessCriticality: string
+  description: string | null
+  createdAt: string | null
+}
+
+export interface EnvironmentRequest {
+  name: string
+  businessCriticality: string
+  description?: string
+}
+
 // ── Asset ─────────────────────────────────────────────────────────────────────
 export interface Asset {
   id: number
@@ -5,7 +20,9 @@ export interface Asset {
   software: string
   ecosystem: string
   version: string
-  criticality: 'CRITICA' | 'ALTA' | 'MEDIA' | 'BAJA' | string
+  environmentId: number | null
+  environmentName: string | null
+  businessCriticality: string | null
   lastScan: string | null
   description: string | null
 }
@@ -15,7 +32,7 @@ export interface AssetRequest {
   software: string
   ecosystem: string
   version: string
-  criticality: string
+  environmentId?: number
   description?: string
 }
 
@@ -26,7 +43,8 @@ export type VulnPriority = 'CRITICA' | 'ALTA' | 'MEDIA' | 'BAJA'
 export interface VulnerabilityAudit {
   id: number
   detectedAt: string
-  asset: string
+  assetId: number | null
+  asset: string | null
   cveId: string | null
   cvss: string | null
   exploited: boolean
@@ -40,7 +58,7 @@ export interface VulnerabilityAudit {
 }
 
 export interface VulnerabilityRequest {
-  asset: string
+  assetId: number
   cveId?: string
   cvss?: string
   exploited?: boolean

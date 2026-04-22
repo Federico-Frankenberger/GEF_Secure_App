@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew compileJava --no-daemon)",
+      "Bash(npm run *)",
+      "Bash(curl -s -X PATCH http://localhost:8081/api/vulnerabilities/558/status -H 'Content-Type: application/json' -d '{\"status\":\"RESUELTA\",\"assignedTo\":\"FF\",\"decision\":\"Parcheado correctamente\"}')",
+      "Bash(python -m json.tool)"
+    ]
+  }
+}

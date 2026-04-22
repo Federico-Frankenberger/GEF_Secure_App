@@ -14,11 +14,9 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
     List<Asset> findByNameContainingIgnoreCaseOrSoftwareContainingIgnoreCase(
             String name, String software);
 
-    Optional<Asset> findBySoftwareAndVersion(String software, String version);
+    Optional<Asset> findBySoftwareAndVersionAndEnvironment_Id(
+            String software, String version, Long environmentId);
 
     @Query("SELECT a.ecosystem, COUNT(a) FROM Asset a GROUP BY a.ecosystem")
     List<Object[]> countByEcosystem();
-
-    @Query("SELECT a.criticality, COUNT(a) FROM Asset a GROUP BY a.criticality")
-    List<Object[]> countByCriticality();
 }

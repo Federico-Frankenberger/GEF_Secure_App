@@ -3,146 +3,6 @@
   "nodes": [
     {
       "parameters": {
-        "rules": {
-          "values": [
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 3
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.priority }}",
-                    "rightValue": "CRITICAL",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    },
-                    "id": "0df38121-7f37-496f-a092-5710456ba550"
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Alerta Inmediata (Slack)"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 3
-                },
-                "conditions": [
-                  {
-                    "id": "53cd1278-c10b-4e7c-8eff-da537d3266ab",
-                    "leftValue": "={{ $json.priority }}",
-                    "rightValue": "HIGH",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Atención Urgente (Slack)"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 3
-                },
-                "conditions": [
-                  {
-                    "id": "f7be6269-34f6-4e3c-9ff2-d791f5df0804",
-                    "leftValue": "={{ $json.priority }}",
-                    "rightValue": "MEDIUM",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Mantenimiento Programado"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 3
-                },
-                "conditions": [
-                  {
-                    "id": "6c0c2d6d-0361-4dc2-b268-4694de1c1cb2",
-                    "leftValue": "={{ $json.priority }}",
-                    "rightValue": "LOW",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Registro Preventivo"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.4,
-      "position": [
-        -256,
-        752
-      ],
-      "id": "2f703447-ffd9-4501-bb46-5367d55b8e8e",
-      "name": "Switch"
-    },
-    {
-      "parameters": {
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "C0AB7JZ05MK",
-          "mode": "id"
-        },
-        "text": "={{ $json.priority == 'CRITICAL' ? '🚨' : ($json.priority == 'HIGH' ? '🔴' : '⚠️') }} *ALERTA DE SEGURIDAD: {{ $json.priority }}* {{ $json.priority == 'CRITICAL' ? '🚨' : ($json.priority == 'HIGH' ? '🔴' : '⚠️') }}\n---\n🖥️ *Activo:* {{ $json.asset_name }}\n📦 *Software:* {{ $json.software }} (v{{ $json.version_instalada }})\n\n🆔 *Identificadores:*\n• *CVE:* `{{ $json.cve_id || 'N/A' }}`\n• *GHSA:* `{{ $json.ghsa_id }}`\n⭐ *CVSS:* {{ $json.cvss }}\n\n🚀 *¿Explotado activamente (CISA)?:* {{ $json.is_cisa_kev ? \"SÍ ⚠️\" : \"No reportado\" }}\n---\n📝 *Plan de Acción Sugerido:*\n{{ $json.action_plan }}\n\n⏰ *Procesado:* {{ $json.processed_at }}",
-        "otherOptions": {}
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.4,
-      "position": [
-        176,
-        752
-      ],
-      "id": "34d7222f-348b-4218-a28f-0eaf0a172a7a",
-      "name": "Send a message",
-      "webhookId": "48683959-9bd6-4e80-bf95-638013bc9f9c",
-      "credentials": {
-        "slackApi": {
-          "id": "Tp9lvfadC3DwQcig",
-          "name": "Slack account"
-        }
-      }
-    },
-    {
-      "parameters": {
         "content": "## FLUJO PRINCIPAL\n\n",
         "height": 80
       },
@@ -177,7 +37,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "position": [
         784,
-        -896
+        -928
       ],
       "typeVersion": 1,
       "id": "ae6f6c22-dada-4d08-8e50-8eaa82449173",
@@ -196,8 +56,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.3,
       "position": [
-        -736,
-        -304
+        -1072,
+        -384
       ],
       "id": "00be6078-6f4e-46f3-9f6f-c71363772598",
       "name": "Scan_Scheduler"
@@ -257,8 +117,8 @@
       "name": "Fetch_GitHub_Advisories",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "oyQSrv4S2JP642Oj",
-          "name": "Header Auth account 2"
+          "id": "FcJPNA2eZthHy7Wl",
+          "name": "Header Auth account 3"
         }
       }
     },
@@ -266,7 +126,7 @@
       "parameters": {
         "fieldToSplitOut": "vulnerabilities",
         "include": "selectedOtherFields",
-        "fieldsToInclude": "ghsa_id, cve_id, cvss_severities",
+        "fieldsToInclude": " ghsa_id,cve_id, cvss_severities",
         "options": {}
       },
       "type": "n8n-nodes-base.splitOut",
@@ -281,7 +141,7 @@
     {
       "parameters": {
         "compare": "selectedFields",
-        "fieldsToCompare": "vulnerabilities.package.name, ghsa_id",
+        "fieldsToCompare": "ghsa_id",
         "options": {}
       },
       "type": "n8n-nodes-base.removeDuplicates",
@@ -296,7 +156,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, name, criticality, software, ecosystem, version \nFROM assets \nWHERE software = '{{ $json.vulnerabilities.package.name }}'\n  AND ecosystem = '{{ $json.vulnerabilities.package.ecosystem }}'\nLIMIT 1;",
+        "query": "SELECT \n    a.id, \n    a.name AS asset_name, \n    a.software, \n    a.ecosystem, \n    a.version, \n    e.name AS env_name, \n    e.business_criticality AS env_criticality\nFROM assets a\nJOIN environments e ON a.environment_id = e.id\nWHERE a.software = '{{ $json.vulnerabilities.package.name }}'\n  AND a.ecosystem = '{{ $json.vulnerabilities.package.ecosystem }}'\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_entorno }}' = 'TODOS' \n      OR e.name = '{{ $(\"Edit Fields\").first().json.filtro_entorno }}'\n  )\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_activo }}' = 'TODOS' \n      OR a.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n  ); ",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -324,16 +184,16 @@
                 "options": {
                   "caseSensitive": true,
                   "leftValue": "",
-                  "typeValidation": "strict",
+                  "typeValidation": "loose",
                   "version": 3
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ !!$json.name }}",
+                    "leftValue": "={{ $json.asset_name }}",
                     "rightValue": "",
                     "operator": {
-                      "type": "boolean",
-                      "operation": "false",
+                      "type": "string",
+                      "operation": "empty",
                       "singleValue": true
                     },
                     "id": "e22fc4b6-1f8e-4e35-b0e0-c8cfb2218b53"
@@ -347,17 +207,17 @@
                 "options": {
                   "caseSensitive": true,
                   "leftValue": "",
-                  "typeValidation": "strict",
+                  "typeValidation": "loose",
                   "version": 3
                 },
                 "conditions": [
                   {
                     "id": "63970d36-ac08-43e8-a169-5a6c6d853b59",
-                    "leftValue": "={{ !!$json.name }}",
+                    "leftValue": "={{ $json.asset_name }}",
                     "rightValue": "",
                     "operator": {
-                      "type": "boolean",
-                      "operation": "true",
+                      "type": "string",
+                      "operation": "notEmpty",
                       "singleValue": true
                     }
                   }
@@ -367,6 +227,7 @@
             }
           ]
         },
+        "looseTypeValidation": true,
         "options": {}
       },
       "type": "n8n-nodes-base.switch",
@@ -381,7 +242,7 @@
     {
       "parameters": {
         "compare": "selectedFields",
-        "fieldsToCompare": "software,ecosystem",
+        "fieldsToCompare": "software,ecosystem, env_name",
         "options": {}
       },
       "type": "n8n-nodes-base.removeDuplicates",
@@ -401,7 +262,7 @@
           "values": [
             {
               "field1": "vulnerabilities.package.name",
-              "field2": " "
+              "field2": "software"
             }
           ]
         },
@@ -504,7 +365,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 1. Obtener catálogo de CISA KEV\nconst cisaNodeData = $('Fetch_CISA_KEV').first().json;\nconst cisaCatalog = cisaNodeData.vulnerabilities || [];\n\nreturn items.map(inputItem => {\n    const item = inputItem.json;\n    \n    // --- 1. LÓGICA DE VERSIONES (Filtro inicial) ---\n    const vData = item.vulnerabilities || {};\n    const miVersion = item.version || \"0.0.0\"; // Viene de tu DB\n    const parcheVersion = vData.first_patched_version;\n    \n    let esVulnerableReal = true;\n\n    // Solo descartamos si la versión instalada es igual o mayor a la parcheada\n    if (parcheVersion && miVersion !== \"0.0.0\") {\n        if (miVersion.localeCompare(parcheVersion, undefined, { numeric: true }) >= 0) {\n            esVulnerableReal = false; \n        }\n    }\n\n    if (!esVulnerableReal) return null;\n\n    // --- 2. EXTRACCIÓN DE CVSS ---\n    const cvssScore = parseFloat(\n        item.cvss_severities?.cvss_v4?.score || \n        item.cvss_severities?.cvss_v3?.score || \n        0.0\n    );\n\n    const idGhsa = item.ghsa_id || \"N/A\";\n    const idCve = item.cve_id || \"N/A\";\n\n    // --- 3. MATCH CISA KEV ---\n    const cisaMatch = (idCve !== \"N/A\") \n        ? cisaCatalog.find(v => v.cveID && v.cveID.trim().toUpperCase() === idCve.trim().toUpperCase())\n        : null;\n    const esExplotado = !!cisaMatch;\n\n    // --- 4. LÓGICA DE PRIORIDAD (COHERENTE) ---\n    let prioridadFinal = \"LOW\";\n    \n    // Nivel 1: Por Score CVSS\n    if (cvssScore >= 7.0) {\n        prioridadFinal = \"HIGH\";\n    } else if (cvssScore >= 4.0) {\n        prioridadFinal = \"MEDIUM\";\n    }\n\n    // Nivel 2: Por ausencia de Parche (Zero-Day escala a CRITICAL)\n    if (!parcheVersion) {\n        prioridadFinal = \"CRITICAL\";\n    }\n\n    // Nivel 3: Por CISA KEV (Explotación activa escala a CRITICAL)\n    if (esExplotado) {\n        prioridadFinal = \"CRITICAL\";\n    }\n\n    // --- 5. ACTION PLAN ---\n    let plan = \"\";\n    if (esExplotado) {\n        plan = `🚨 EMERGENCIA: Vulnerabilidad explotada activamente (CISA KEV). AISLAR el activo '${item.name}' y aplicar parche v${parcheVersion || 'urgente'} de forma inmediata.`;\n    } else if (prioridadFinal === \"CRITICAL\" && !parcheVersion) {\n        plan = `💀 RIESGO CRÍTICO (Zero-Day): No hay parche disponible para el software '${vData.package?.name}'. Incrementar monitoreo de logs y restringir acceso al activo. CVSS: ${cvssScore}`;\n    } else if (prioridadFinal === \"HIGH\") {\n        plan = `⚠️ ALERTA: Riesgo alto detectado. Score CVSS: ${cvssScore}. Se requiere programar actualización a v${parcheVersion} en la próxima ventana de mantenimiento.`;\n    } else {\n        plan = `🔍 OBSERVACIÓN: Riesgo ${prioridadFinal.toLowerCase()} (${cvssScore}). Verificar compatibilidad con la versión parcheada v${parcheVersion}.`;\n    }\n\n    return {\n        json: {\n            asset_id: item.id,\n            asset_name: item.name,\n            software: vData.package?.name || item.software || \"Desconocido\",\n            version_instalada: miVersion,\n            ghsa_id: idGhsa,\n            cve_id: idCve,\n            cvss: cvssScore,\n            priority: prioridadFinal,\n            is_cisa_kev: esExplotado,\n            action_plan: plan,\n            processed_at: new Date().toISOString()\n        }\n    };\n}).filter(x => x !== null);"
+        "jsCode": "// 1. Obtener catálogo de CISA KEV (para detectar explotación activa)\nconst cisaNodeData = $('Fetch_CISA_KEV').first().json;\nconst cisaCatalog = cisaNodeData.vulnerabilities || [];\n\nreturn items.map(inputItem => {\n    const item = inputItem.json;\n    \n    // Si no hay asset_name es porque el JOIN de Postgres no encontró el activo en tu inventario\n    if (!item.asset_name) return null; \n\n    // --- 1. LÓGICA DE VERSIONES (Tu código original) ---\n    const vData = item.vulnerabilities || {};\n    const miVersion = item.version || \"0.0.0\";\n    const parcheVersion = vData.first_patched_version;\n    \n    let esVulnerableReal = true;\n    if (parcheVersion && miVersion !== \"0.0.0\") {\n        // Si la versión instalada ya es igual o mayor a la que trae el parche, ya no es vulnerable\n        if (miVersion.localeCompare(parcheVersion, undefined, { numeric: true }) >= 0) {\n            esVulnerableReal = false; \n        }\n    }\n    if (!esVulnerableReal) return null;\n\n    // --- 2. EXTRACCIÓN DE DATOS TÉCNICOS ---\n    const cvssScore = parseFloat(\n        item.cvss_severities?.cvss_v4?.score || \n        item.cvss_severities?.cvss_v3?.score || \n        0.0\n    );\n    const idCve = item.cve_id || \"N/A\";\n    const idGhsa = item.ghsa_id || \"N/A\";\n\n    // Match con CISA KEV\n    const cisaMatch = (idCve !== \"N/A\") \n        ? cisaCatalog.find(v => v.cveID?.trim().toUpperCase() === idCve.trim().toUpperCase()) \n        : null;\n    const esExplotado = !!cisaMatch;\n\n    // --- 3. MATRIZ DE RIESGO CONTEXTUAL ---\n    let prioridadBase = \"LOW\";\n    if (cvssScore >= 9.0) prioridadBase = \"CRITICAL\";\n    else if (cvssScore >= 7.0) prioridadBase = \"HIGH\";\n    else if (cvssScore >= 4.0) prioridadBase = \"MEDIUM\";\n\n    const criticidadNegocio = item.env_criticality || \"LOW\";\n    const entornoNombre = item.env_name || \"DESCONOCIDO\";\n    let prioridadFinal = prioridadBase;\n\n    // Ajuste de Prioridad según el Entorno (Lógica de Tesis)\n    if (criticidadNegocio === \"CRITICAL\") {\n        if (prioridadBase === \"HIGH\") prioridadFinal = \"CRITICAL\";\n        if (prioridadBase === \"MEDIUM\") prioridadFinal = \"HIGH\";\n    } else if (criticidadNegocio === \"LOW\") {\n        if (prioridadBase === \"CRITICAL\") prioridadFinal = \"HIGH\";\n        if (prioridadBase === \"HIGH\") prioridadFinal = \"MEDIUM\";\n    }\n\n    // --- 4. OVERRIDES DE SEGURIDAD ---\n    // Si es CISA KEV: Escala a Crítico en PROD/QA y Alto en DESA\n    if (esExplotado) {\n        prioridadFinal = (criticidadNegocio === \"LOW\") ? \"HIGH\" : \"CRITICAL\";\n    }\n    \n    // Si es Zero-Day (No hay parche disponible), subimos la urgencia un nivel\n    const esZeroDay = !parcheVersion;\n    if (esZeroDay) {\n        if (prioridadFinal === \"HIGH\") prioridadFinal = \"CRITICAL\";\n        else if (prioridadFinal === \"MEDIUM\") prioridadFinal = \"HIGH\";\n        else if (prioridadFinal === \"LOW\") prioridadFinal = \"MEDIUM\";\n    }\n\n    // --- 5. ACTION PLAN CONTEXTUALIZADO ---\n    let plan = \"\";\n    if (esExplotado) {\n        plan = `🚨 EMERGENCIA (CISA KEV) en ${entornoNombre}: Explotación activa detectada. AISLAR '${item.asset_name}' y aplicar parche v${parcheVersion || 'URGENTE'}.`;\n    } \n    else if (esZeroDay) {\n        plan = `💀 ZERO-DAY en ${entornoNombre}: No existe parche para '${item.software}'. Mitigar con reglas de red y monitoreo en '${item.asset_name}'.`;\n    }\n    else if (prioridadFinal === \"CRITICAL\") {\n        plan = `⚠️ PRIORIDAD MÁXIMA: Activo crítico en ${entornoNombre}. Remediación requerida en menos de 24hs.`;\n    }\n    else {\n        plan = `🔍 TRIAGE: Riesgo ${prioridadFinal.toLowerCase()} en ${entornoNombre}. Actualizar a v${parcheVersion} según ventana de mantenimiento.`;\n    }\n\n    // --- 6. SALIDA FINAL ---\n    return {\n        json: {\n            asset_id: item.id,\n            asset_name: item.asset_name,\n            software: item.software,\n            ecosystem: item.ecosystem,\n            version_instalada: miVersion,\n            patch_version: parcheVersion || \"N/A\",\n            environment: entornoNombre,\n            ghsa_id: idGhsa,\n            cve_id: idCve,\n            cvss: cvssScore,\n            priority: prioridadFinal,\n            is_cisa_kev: esExplotado,\n            is_zero_day: esZeroDay,\n            action_plan: plan,\n            processed_at: new Date().toISOString()\n        }\n    };\n}).filter(x => x !== null);"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -518,14 +379,14 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.vulnerabilities_audit \n(detected_at, asset, cve_id, ghsa_id, cvss, exploited, priority, decision, assigned_to, status) \nVALUES (\n  NOW(), \n  '{{ $json.asset_name.replace(/'/g, \"''\") }}', \n  '{{ $json.cve_id }}', \n  '{{ $json.ghsa_id }}', -- Agregado aquí con comillas porque es texto\n  {{ $json.cvss }}, \n  {{ $json.is_cisa_kev }}, \n  '{{ $json.priority }}', \n  '{{ $json.action_plan.replace(/'/g, \"''\") }}', \n  'SIN_ASIGNAR', \n  'DETECTADA'\n);",
+        "query": "INSERT INTO public.vulnerabilities_audit \n(\n    detected_at, \n    asset_id,\n    cve_id, \n    ghsa_id, \n    cvss, \n    exploited, \n    priority, \n    decision, \n    assigned_to, \n    status\n) \nVALUES (\n    NOW(), \n    {{ $json.id || $json.asset_id || 0 }}, -- Intenta con 'id', si no 'asset_id', y si no pone 0 para que no sea undefined\n    '{{ $json.cve_id || \"N/A\" }}', \n    '{{ $json.ghsa_id }}', \n    '{{ $json.cvss }}', \n    {{ $json.is_cisa_kev ? 'TRUE' : 'FALSE' }}, \n    '{{ $json.priority }}', \n    '{{ $json.action_plan.replace(/'/g, \"''\") }}', \n    'SIN_ASIGNAR', \n    'DETECTADA'\n);",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
         1392,
-        64
+        96
       ],
       "id": "4cffc514-9b09-4344-91bd-89ccc3ad8a42",
       "name": "Persist_Audit_Findings",
@@ -554,7 +415,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "id": "={{ $('Deduplicate_Target_Assets').item.json.id }}",
+            "id": "={{ $json.asset_id }}",
             "last_scan": "={{ $now }}"
           },
           "matchingColumns": [
@@ -650,7 +511,7 @@
       "typeVersion": 2.6,
       "position": [
         1392,
-        272
+        288
       ],
       "id": "bbd49770-d7ad-45f8-867c-c4a2e3a24fb2",
       "name": "Update_Asset_Audit_Timestamp",
@@ -674,7 +535,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const allItems = items;\n\nlet metrics = {\n    total_items: allItems.length,\n    auditados: 0,\n    ignorados: 0,\n    criticos: 0,\n    altas: 0,\n    medias: 0,\n    bajas: 0\n};\n\nfor (const item of allItems) {\n    const data = item.json;\n\n    // Buscamos el valor de criticidad en cualquier variante de nombre\n    // Esto cubre 'criticality', 'Criticality', 'PRIORITY', etc.\n    const rawCriticality = data.criticality || data.Criticality || data.priority || data.Priority || null;\n\n    // Si encontramos una criticidad definida, es un auditado\n    if (rawCriticality !== null) {\n        metrics.auditados++;\n        \n        const sev = rawCriticality.toString().toUpperCase();\n        \n        if (sev === 'CRITICAL') metrics.criticos++;\n        else if (sev === 'HIGH') metrics.altas++;\n        else if (sev === 'MEDIUM') metrics.medias++;\n        else if (sev === 'LOW') metrics.bajas++;\n    } \n    // Si no tiene nada de eso, verificamos si es de la rama de ignorados (JSON de GitHub)\n    else {\n        metrics.ignorados++;\n    }\n}\n\nreturn [{\n    json: {\n        ejecucion_stats: {\n            resumen: `Análisis finalizado: ${metrics.total_items} registros evaluados.`,\n            detalle: metrics,\n            status_sistema: metrics.criticos > 0 ? \"⚠️ ACCIÓN REQUERIDA\" : \"✅ ESTABLE\",\n            fecha: new Date().toLocaleString()\n        }\n    }\n}];"
+        "jsCode": "const allItems = items;\n\nlet metrics = {\n    total_items: allItems.length,\n    auditados: 0,\n    ignorados: 0,\n    criticos: 0,\n    altas: 0,\n    medias: 0,\n    bajas: 0\n};\n\n// Objeto para agrupar las estadísticas por entorno\nlet stats_por_entorno = {};\n\nfor (const item of allItems) {\n    const data = item.json;\n\n    // Detectamos la prioridad (soporta varias fuentes de nombre)\n    const rawPriority = data.priority || data.Priority || data.criticality || null;\n    // Detectamos el entorno\n    const envName = data.environment || data.env_name || \"DESCONOCIDO\";\n\n    // Si encontramos una prioridad, el ítem fue analizado por el motor de riesgo\n    if (rawPriority !== null) {\n        metrics.auditados++;\n        const sev = rawPriority.toString().toUpperCase();\n        \n        // 1. Inicializar el entorno en el objeto si no existe\n        if (!stats_por_entorno[envName]) {\n            stats_por_entorno[envName] = { \n                criticos: 0, \n                altas: 0, \n                medias: 0, \n                bajas: 0, \n                total: 0 \n            };\n        }\n\n        // 2. Sumar al contador del entorno específico\n        stats_por_entorno[envName].total++;\n\n        // 3. Clasificar por severidad (Global y por Entorno)\n        if (sev === 'CRITICAL') {\n            metrics.criticos++;\n            stats_por_entorno[envName].criticos++;\n        } \n        else if (sev === 'HIGH') {\n            metrics.altas++;\n            stats_por_entorno[envName].altas++;\n        } \n        else if (sev === 'MEDIUM') {\n            metrics.medias++;\n            stats_por_entorno[envName].medias++;\n        } \n        else if (sev === 'LOW') {\n            metrics.bajas++;\n            stats_por_entorno[envName].bajas++;\n        }\n    } \n    // Si no tiene prioridad, es porque fue filtrado/ignorado antes del motor de riesgo\n    else {\n        metrics.ignorados++;\n    }\n}\n\nreturn [{\n    json: {\n        ejecucion_stats: {\n            resumen: `Análisis finalizado: ${metrics.total_items} registros evaluados.`,\n            detalle: metrics,\n            entornos: stats_por_entorno,\n            status_sistema: metrics.criticos > 0 ? \"⚠️ ACCIÓN REQUERIDA\" : \"✅ ESTABLE\",\n            fecha: new Date().toLocaleString('es-AR')\n        }\n    }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -693,14 +554,14 @@
           "value": "C0AB7JZ05MK",
           "mode": "id"
         },
-        "text": "=\n🚀 *GEF Secure - Reporte de Escaneo - {{ $json.ejecucion_stats.fecha }}*\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📊 *Resumen General:*\n• Total evaluados: {{ $json.ejecucion_stats.detalle.total_items }}\n• Ignorados (Filtro): {{ $json.ejecucion_stats.detalle.ignorados }}\n• Enviados a Auditoría: {{ $json.ejecucion_stats.detalle.auditados }}\n\n *Detalle de Riesgos Auditados:*\n• 🔴 Críticos: *{{ $json.ejecucion_stats.detalle.criticos }}*\n• 🟠 Altos: {{ $json.ejecucion_stats.detalle.altas }}\n• 🟡 Medios: {{ $json.ejecucion_stats.detalle.medias }}\n• 🔵 Bajos: {{ $json.ejecucion_stats.detalle.bajas }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━\nEstado Final: *{{ $json.ejecucion_stats.status_sistema }}*\n\n🔗 *<http://localhost:3000/|Ir a la Gestión de Vulnerabilidades>*",
+        "text": "=*🛡️ GEF SECURE | REPORTE DE ESTADO DE SEGURIDAD*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 IDENTIFICACIÓN DEL ESCANEO*\n> *ID de Ejecución:* `{{ $execution.id }}`\n> *Fecha:* `{{ $json.ejecucion_stats.fecha }}`\n> *Origen:* Auditoría Automatizada VMP\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📊 RESUMEN DE ANÁLISIS*\n> • Registros totales: `{{ $json.ejecucion_stats.detalle.total_items }}`\n> • Activos auditados: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Registros filtrados: `{{ $json.ejecucion_stats.detalle.ignorados }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*⚠️ MATRIZ DE RIESGO GLOBAL*\n> • CRÍTICO: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • ALTO: `{{ $json.ejecucion_stats.detalle.altas }}`\n> • MEDIO: `{{ $json.ejecucion_stats.detalle.medias }}`\n> • BAJO: `{{ $json.ejecucion_stats.detalle.bajas }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*🌐 ESTADO POR ENTORNO*\n{{ Object.entries($json.ejecucion_stats.entornos).map(([name, s]) => {\n  return `• *${name.toUpperCase()}* ➔ [ CRIT: ${s.criticos} | ALTO: ${s.altas} | MED: ${s.medias} | BAJ: ${s.bajas} ]`;\n}).join('\\n') }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ATENCIÓN:* Se han detectado vulnerabilidades críticas. Se requiere mitigación inmediata de los activos comprometidos.\" : \"✅ *VALIDADO:* La postura de seguridad es correcta. No se requieren intervenciones en este ciclo.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/|Acceder al Panel de Gestión de GEF Secure>",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        2144,
-        -352
+        2576,
+        -464
       ],
       "id": "59764e24-1945-4027-b21d-d9f41bae6720",
       "name": "Notify_Security_Status",
@@ -715,14 +576,14 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.scan_reports (\n    executed_at, -- ¡No te olvides de esta!\n    total_detected, \n    audited, \n    ignored, \n    criticals, \n    highs, \n    mediums, \n    lows, \n    system_status, \n    report_message\n) \nVALUES (\n    NOW(), -- Función de Postgres para la fecha actual\n    {{ $json.ejecucion_stats.detalle.total_items }}, \n    {{ $json.ejecucion_stats.detalle.auditados }}, \n    {{ $json.ejecucion_stats.detalle.ignorados }}, \n    {{ $json.ejecucion_stats.detalle.criticos }}, \n    {{ $json.ejecucion_stats.detalle.altas }}, \n    {{ $json.ejecucion_stats.detalle.medias }}, \n    {{ $json.ejecucion_stats.detalle.bajas }}, \n    '{{ $json.ejecucion_stats.status_sistema }}', \n    '{{ $json.ejecucion_stats.resumen.replace(/'/g, \"''\") }}'\n);",
+        "query": "INSERT INTO public.scan_reports (\n    executed_at, \n    total_detected, audited, ignored, \n    criticals, highs, mediums, lows, \n    system_status, report_message, \n    environment_breakdown, \n    target_type, \n    target_name\n) \nVALUES (\n    NOW(), \n    {{ $json.ejecucion_stats.detalle.total_items }}, \n    {{ $json.ejecucion_stats.detalle.auditados }}, \n    {{ $json.ejecucion_stats.detalle.ignorados }}, \n    {{ $json.ejecucion_stats.detalle.criticos }}, \n    {{ $json.ejecucion_stats.detalle.altas }}, \n    {{ $json.ejecucion_stats.detalle.medias }}, \n    {{ $json.ejecucion_stats.detalle.bajas }}, \n    '{{ $json.ejecucion_stats.status_sistema }}', \n    '{{ $json.ejecucion_stats.resumen.replace(/'/g, \"''\") }}',\n    '{{ JSON.stringify($json.ejecucion_stats.entornos) }}'::jsonb,\n    '{{ $(\"Edit Fields\").first().json.filtro_activo !== \"TODOS\" ? \"ACTIVO\" : ($(\"Edit Fields\").first().json.filtro_entorno !== \"TODOS\" ? \"ENTORNO\" : \"GLOBAL\") }}',\n    '{{ $(\"Edit Fields\").first().json.filtro_activo !== \"TODOS\" ? $(\"Edit Fields\").first().json.filtro_activo : ($(\"Edit Fields\").first().json.filtro_entorno !== \"TODOS\" ? $(\"Edit Fields\").first().json.filtro_entorno : \"TODOS\") }}'\n);",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2144,
-        -144
+        1872,
+        96
       ],
       "id": "bb0e0541-e55a-416f-b030-515d56f82512",
       "name": "Persist_Scan_Statistics",
@@ -768,15 +629,15 @@
       "name": "Fetch_Global_Advisories",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "oyQSrv4S2JP642Oj",
-          "name": "Header Auth account 2"
+          "id": "FcJPNA2eZthHy7Wl",
+          "name": "Header Auth account 3"
         }
       }
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.assets(\n    name, software, ecosystem, version, criticality, last_scan, description\n)\nVALUES (\n    '{{ $json.name }}', \n    '{{ $json.software }}', \n    '{{ $json.ecosystem }}', \n    '{{ $json.version }}', \n    '{{ $json.criticality }}', \n    '{{ $json.last_scan }}', \n    '{{ $json.description.replace(/'/g, \"''\") }}'\n)\nON CONFLICT (software, version) \nDO UPDATE SET \n    last_scan = EXCLUDED.last_scan,\n    description = EXCLUDED.description;",
+        "query": "INSERT INTO public.assets (\n    name, \n    software, \n    ecosystem, \n    version, \n    environment_id, \n    last_scan, \n    description\n) VALUES (\n    '{{ $json.name }}', \n    '{{ $json.software.toLowerCase().trim() }}', \n    '{{ $json.ecosystem.toLowerCase().trim() }}', \n    '{{ $json.version.trim() }}', \n    {{ $json.environment_id }}, -- 🚀 Ahora inyecta dinámicamente en el entorno 1, 2 o 3\n    NOW(), \n    '{{ $json.description }}' -- 🚀 Ahora guarda el texto con el detalle del CVE\n) \nON CONFLICT (software, version, environment_id) \nDO UPDATE SET \n    name = EXCLUDED.name,\n    last_scan = NOW(),\n    description = EXCLUDED.description;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -857,7 +718,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 1. Recolectamos todos los paquetes válidos de los 100 resultados\nconst validPool = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  // Verificamos que tenga la estructura de GitHub Advisories\n  if (data.vulnerabilities && Array.isArray(data.vulnerabilities)) {\n    // Buscamos dentro de ese advisory si hay un paquete con nombre y ecosistema\n    const found = data.vulnerabilities.find(v => v.package?.name && v.package?.ecosystem);\n    \n    if (found) {\n      validPool.push({\n        summary: data.summary,\n        severity: data.severity,\n        packageName: found.package.name,\n        ecosystem: found.package.ecosystem\n      });\n    }\n  }\n}\n\n// 2. Si la API no devolvió nada válido, tiramos un array vacío (evita que el flujo explote)\nif (validPool.length === 0) return [];\n\n// 3. SELECCIÓN ALEATORIA: Elegimos uno al azar del pool de 100\nconst selected = validPool[Math.floor(Math.random() * validPool.length)];\n\n// 4. Devolvemos el formato exacto que espera tu SQL (Nodo 3)\nreturn [{\n  json: {\n    name: `[TEST] - ${selected.packageName.toUpperCase()} - Simulación de Activo`,\n    software: selected.packageName,\n    ecosystem: selected.ecosystem,\n    version: \"0.0.1\", // Versión fija para forzar el match de riesgo en la tesis\n    criticality: selected.severity || \"critical\",\n    last_scan: new Date().toISOString(),\n    description: \"Inyección aleatoria - Test de consistencia GEF Secure\"\n  }\n}];"
+        "jsCode": "// 1. Recolección y limpieza de datos\nconst pool = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const data = items[i].json;\n  \n  if (data.vulnerabilities && Array.isArray(data.vulnerabilities)) {\n    const list = data.vulnerabilities;\n    for (let j = 0; j < list.length; j++) {\n      const v = list[j];\n      if (v.package && v.package.name) {\n        pool.push({\n          name: v.package.name,\n          ecosystem: v.package.ecosystem || \"npm\",\n          summary: data.summary || \"Simulación de seguridad\",\n          severity: data.severity || \"CRITICAL\",\n          range: String(v.vulnerable_version_range || \"0.0.1\")\n        });\n      }\n    }\n  }\n}\n\nif (pool.length === 0) return [];\n\nconst selected = pool[Math.floor(Math.random() * pool.length)];\nconst envId = Math.floor(Math.random() * 3) + 1;\n\n// 2. Extracción de versión UNICA (Corregido para evitar duplicados)\nlet versionStr = \"0.0.1\";\nif (selected.range) {\n  // Buscamos la primera secuencia de números y puntos\n  const match = selected.range.match(/\\d+[\\d\\.]*/);\n  if (match) {\n    // Tomamos match que es el string exacto encontrado, sin grupos de captura\n    versionStr = String(match);\n    \n    // Limpieza extra: Si terminó en punto o coma por error, lo quitamos\n    if (versionStr.endsWith('.') || versionStr.endsWith(',')) {\n      versionStr = versionStr.slice(0, -1);\n    }\n  }\n}\n\n// 3. Retorno del objeto final\nreturn [\n  {\n    json: {\n      name: \"ASSET-\" + selected.name.toUpperCase(),\n      software: selected.name.toLowerCase().trim(),\n      ecosystem: selected.ecosystem.toLowerCase().trim(),\n      version: versionStr, // Ahora sí: \"16.0.5\"\n      criticality: selected.severity,\n      last_scan: new Date().toISOString(),\n      description: \"Inyectado en Entorno ID \" + envId + \": \" + selected.summary,\n      environment_id: envId\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -877,7 +738,7 @@
           "value": "C0AB7JZ05MK",
           "mode": "id"
         },
-        "text": "=📥 GEF Secure - Inyección de Activo de Prueba\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🛡️ Activo: {{ $json.name }}\n📦 Software: {{ $json.software }}\n🏷️ Ecosistema: {{ $json.ecosystem }}\n🔢 Versión: {{ $json.version }}\n⚠️ Severidad Original: {{ $json.criticality.toUpperCase() }}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ El inventario ha sido actualizado. El sistema está listo para el ciclo de auditoría.",
+        "text": "=*📥 GEF SECURE | INYECTOR DE ACTIVOS*\n━━━━━━━━━━━━━━━━━━━━━━━━━\n*🛡️ Activo:* `{{ $json.name }}`\n*📦 Software:* `{{ $json.software }}`\n*🏷️ Ecosistema:* `{{ $json.ecosystem.toLowerCase() }}`\n*🔢 Versión:* `{{ $json.version }}`\n*⚠️ Severidad Reportada:* `{{ $json.criticality.toUpperCase() }}`\n━━━━━━━━━━━━━━━━━━━━━━━━━\n_✅ El activo ha sido persistido en la base de datos (Entorno: DESARROLLO). El sistema está listo para el ciclo de auditoría._",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
@@ -906,40 +767,214 @@
       ],
       "id": "6361899e-fcb5-40bc-999b-9f082a1bedd5",
       "name": "Manual_Trigger"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auditoria-automatizada",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1072,
+        -208
+      ],
+      "id": "dd5fa564-adf7-4de0-8b7e-49d92dbc612d",
+      "name": "Webhook",
+      "webhookId": "65d6f086-4126-42a4-8492-43015fbb2ec6"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bfa943d7-4dcf-4a0e-983a-bedf355da1bf",
+              "name": "filtro_entorno",
+              "value": "={{ $(\"Webhook\").isExecuted ? $node[\"Webhook\"].json.body.entorno : \"TODOS\" }}",
+              "type": "string"
+            },
+            {
+              "id": "99aca06d-d933-40d5-9c1b-ca400af00e92",
+              "name": "filtro_activo",
+              "value": "={{ $(\"Webhook\").isExecuted ? $node[\"Webhook\"].json.body.activo_name : \"TODOS\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -736,
+        -304
+      ],
+      "id": "48b761bb-74ba-499c-b140-2f7186df1ace",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "compare": "selectedFields",
+        "fieldsToCompare": "asset_id",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        288
+      ],
+      "id": "3ff1b476-6f14-4ece-8608-7006a0edcc8b",
+      "name": "Remove Duplicates"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $(\"Edit Fields\").first().json.filtro_activo !== 'TODOS' ? 'ACTIVO' : ($(\"Edit Fields\").first().json.filtro_entorno !== 'TODOS' ? 'ENTORNO' : 'GLOBAL') }}",
+                    "rightValue": "GLOBAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e36e70ae-2260-4f85-8710-4bb64bcea3fa"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "79026379-6f12-4bb4-82ca-8c0e91a1083f",
+                    "leftValue": "={{ $(\"Edit Fields\").first().json.filtro_activo !== 'TODOS' ? 'ACTIVO' : ($(\"Edit Fields\").first().json.filtro_entorno !== 'TODOS' ? 'ENTORNO' : 'GLOBAL') }}",
+                    "rightValue": "ENTORNO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "0688cd94-b5d3-4fe3-b12e-3dbbc0fd984d",
+                    "leftValue": "={{ $(\"Edit Fields\").first().json.filtro_activo !== 'TODOS' ? 'ACTIVO' : ($(\"Edit Fields\").first().json.filtro_entorno !== 'TODOS' ? 'ENTORNO' : 'GLOBAL') }}",
+                    "rightValue": "ACTIVO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2160,
+        -256
+      ],
+      "id": "5a31d594-73a3-4ddd-bf3b-1e21dbea2834",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AB7JZ05MK",
+          "mode": "id"
+        },
+        "text": "=*🛡️ GEF SECURE | REPORTE DE ESTADO POR ENTORNO*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 SEGMENTO ANALIZADO*\n> *Entorno:* `{{ $(\"Edit Fields\").first().json.filtro_entorno?.toUpperCase() || 'N/A' }}`\n> *ID de Ejecución:* `{{ $execution.id }}`\n> *Fecha:* `{{ $(\"Compute_Audit_Metrics\").first().json.ejecucion_stats.fecha }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📊 MÉTRICAS DEL SEGMENTO*\n> • Hallazgos totales: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Críticos: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • Altos: `{{ $json.ejecucion_stats.detalle.altas }}`\n> • Medios/Bajos: `{{ $json.ejecucion_stats.detalle.medias + $json.ejecucion_stats.detalle.bajas }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ATENCIÓN:* Se requiere revisión de la política de seguridad en este entorno.\" : \"✅ *VALIDADO:* El segmento opera bajo parámetros de riesgo aceptables.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/|Ver detalle del entorno en GEF Secure>",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        2576,
+        -240
+      ],
+      "id": "804bc076-5dbb-4964-8d89-fd88e1af4268",
+      "name": "Notify_Security_Status1_entorno",
+      "webhookId": "48683959-9bd6-4e80-bf95-638013bc9f9c",
+      "credentials": {
+        "slackApi": {
+          "id": "Tp9lvfadC3DwQcig",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AB7JZ05MK",
+          "mode": "id"
+        },
+        "text": "=*🛡️ GEF SECURE | REPORTE TÉCNICO DE ACTIVO*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 IDENTIFICACIÓN DEL ACTIVO*\n> *Nombre:* `{{ $(\"Edit Fields\").first().json.filtro_activo?.toUpperCase() || 'N/A' }}`\n> *Ubicación:* `{{ $(\"Edit Fields\").first().json.filtro_entorno?.toUpperCase() || 'N/A' }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*⚠️ RESULTADO DE AUDITORÍA*\n> • Vulnerabilidades detectadas: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Riesgos Críticos: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • Puntuación CVSS Máxima: `{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"CRÍTICO\" : \"ESTÁNDAR\" }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ACCIÓN REQUERIDA:* Intervenir el activo para mitigar vulnerabilidades detectadas.\" : \"✅ *VALIDADO:* El activo cumple con los requisitos de seguridad vigentes.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/|Ver historial de auditoría del activo>",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        2576,
+        16
+      ],
+      "id": "6d0d8229-c430-4b13-be0a-3546bc1210ce",
+      "name": "Notify_Security_Status2_activo",
+      "webhookId": "48683959-9bd6-4e80-bf95-638013bc9f9c",
+      "credentials": {
+        "slackApi": {
+          "id": "Tp9lvfadC3DwQcig",
+          "name": "Slack account"
+        }
+      }
     }
   ],
   "pinData": {},
   "connections": {
-    "Switch": {
-      "main": [
-        [
-          {
-            "node": "Send a message",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Send a message",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [],
-        []
-      ]
-    },
-    "Send a message": {
-      "main": [
-        []
-      ]
-    },
     "Scan_Scheduler": {
       "main": [
         [
           {
-            "node": "Fetch_CISA_KEV",
+            "node": "Edit Fields",
             "type": "main",
             "index": 0
           }
@@ -1086,19 +1121,18 @@
             "node": "Persist_Audit_Findings",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
     },
     "Persist_Audit_Findings": {
       "main": [
-        [
-          {
-            "node": "Update_Asset_Audit_Timestamp",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Update_Asset_Audit_Timestamp": {
@@ -1121,7 +1155,7 @@
       "main": [
         [
           {
-            "node": "Notify_Security_Status",
+            "node": "Switch1",
             "type": "main",
             "index": 0
           },
@@ -1191,6 +1225,69 @@
           }
         ]
       ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Fetch_CISA_KEV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Update_Asset_Audit_Timestamp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify_Security_Status": {
+      "main": [
+        []
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Notify_Security_Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify_Security_Status1_entorno",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify_Security_Status2_activo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -1198,10 +1295,10 @@
     "executionOrder": "v1",
     "availableInMCP": false
   },
-  "versionId": "f2d0c404-9843-423a-b52e-e98805afec36",
+  "versionId": "7b36b2f9-d6df-45e1-a3ae-49f0aa6f1d22",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "f41e530837aaae23c763e8e706d86412be1009909c36bfb090df8e37ae09e7cf"
+    "instanceId": "29f431f61c7255a6ccc625ca2eb147f7114d803a2673eef917b35fd09e4bc3b0"
   },
   "id": "Ix00EX3vq6sfnRo7zGepF",
   "tags": []

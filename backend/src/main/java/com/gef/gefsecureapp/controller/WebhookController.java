@@ -51,6 +51,9 @@ public class WebhookController {
                 .lows(payload.lows)
                 .systemStatus(payload.systemStatus)
                 .reportMessage(payload.reportMessage)
+                .environmentBreakdown(payload.environmentBreakdown)
+                .targetType(payload.targetType)
+                .targetName(payload.targetName)
                 .build();
         scanReportRepository.save(report);
         log.info("Scan report guardado: total={}", payload.totalDetected);
@@ -76,6 +79,9 @@ public class WebhookController {
     public static class ScanReportPayload {
         public int totalDetected, audited, ignored, criticals, highs, mediums, lows;
         public String systemStatus, reportMessage;
+        public String environmentBreakdown;
+        public String targetType;
+        public String targetName;
     }
 
     @Getter @Setter @NoArgsConstructor @JsonIgnoreProperties(ignoreUnknown = true)

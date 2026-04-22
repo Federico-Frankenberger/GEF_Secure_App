@@ -7,16 +7,18 @@ import org.mapstruct.*;
 @Mapper(componentModel = "spring")
 public interface AssetMapper {
 
-    // Request → Entity (ignorar id y lastScan, los gestiona el service)
-    @Mapping(target = "id",       ignore = true)
-    @Mapping(target = "lastScan", ignore = true)
+    @Mapping(target = "id",          ignore = true)
+    @Mapping(target = "lastScan",    ignore = true)
+    @Mapping(target = "environment", ignore = true)
     Asset toEntity(AssetDTO.Request dto);
 
-    // Entity → Response (mapeo 1:1, los nombres coinciden)
+    @Mapping(target = "environmentId",       source = "environment.id")
+    @Mapping(target = "environmentName",     source = "environment.name")
+    @Mapping(target = "businessCriticality", source = "environment.businessCriticality")
     AssetDTO.Response toResponse(Asset entity);
 
-    // Actualización parcial: solo sobreescribe los campos del DTO
-    @Mapping(target = "id",       ignore = true)
-    @Mapping(target = "lastScan", ignore = true)
+    @Mapping(target = "id",          ignore = true)
+    @Mapping(target = "lastScan",    ignore = true)
+    @Mapping(target = "environment", ignore = true)
     void updateEntity(AssetDTO.Request dto, @MappingTarget Asset existing);
 }

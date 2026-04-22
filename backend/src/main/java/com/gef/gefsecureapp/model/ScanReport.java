@@ -35,4 +35,13 @@ public class ScanReport {
 
     @Column(name = "report_message", columnDefinition = "text")
     private String reportMessage;
+
+    @Column(name = "environment_breakdown", columnDefinition = "jsonb")
+    private String environmentBreakdown;
+
+    @Column(name = "target_type", length = 20)
+    private String targetType;
+
+    @Column(name = "target_name", length = 100)
+    private String targetName;
 }

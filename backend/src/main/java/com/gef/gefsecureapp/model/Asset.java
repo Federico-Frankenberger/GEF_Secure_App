@@ -25,12 +25,13 @@ public class Asset {
     @Column(length = 50)
     private String version;
 
-    @Column(length = 20)
-    private String criticality;
-
     @Column(name = "last_scan")
     private LocalDateTime lastScan;
 
     @Column(columnDefinition = "text")
     private String description;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "environment_id")
+    private Environment environment;
 }

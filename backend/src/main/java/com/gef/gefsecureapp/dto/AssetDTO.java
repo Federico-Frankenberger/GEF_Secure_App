@@ -23,8 +23,7 @@ public class AssetDTO {
         @Size(max = 50)
         private String version;
 
-        @Size(max = 20)
-        private String criticality;
+        private Long environmentId;
 
         private String description;
     }
@@ -36,7 +35,9 @@ public class AssetDTO {
         private String software;
         private String ecosystem;
         private String version;
-        private String criticality;
+        private Long environmentId;
+        private String environmentName;
+        private String businessCriticality;
         private LocalDateTime lastScan;
         private String description;
     }

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type {
+  Environment, EnvironmentRequest,
   Asset, AssetRequest,
   VulnerabilityAudit, VulnerabilityRequest, StatusUpdate,
   User, UserRequest,
@@ -25,6 +26,15 @@ http.interceptors.response.use(
     return Promise.reject(new Error(msg))
   }
 )
+
+// ── Environments ──────────────────────────────────────────────────────────────
+export const environmentApi = {
+  getAll:  ()                                    => http.get<Environment[]>('/environments'),
+  getById: (id: number)                          => http.get<Environment>(`/environments/${id}`),
+  create:  (data: EnvironmentRequest)            => http.post<Environment>('/environments', data),
+  update:  (id: number, data: EnvironmentRequest) => http.put<Environment>(`/environments/${id}`, data),
+  delete:  (id: number)                          => http.delete(`/environments/${id}`),
+}
 
 // ── Assets ────────────────────────────────────────────────────────────────────
 export const assetApi = {
