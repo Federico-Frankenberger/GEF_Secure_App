@@ -99,6 +99,7 @@ export interface DashboardStats {
   openVulnerabilities: number
   criticalVulnerabilities: number
   resolvedThisMonth: number
+  mttrDays: number | null
   systemStatus: string
   severityDistribution: Array<{ name: string; value: number }>
   statusDistribution:   Array<{ name: string; value: number }>

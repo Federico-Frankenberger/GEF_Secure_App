@@ -11,6 +11,7 @@ public class DashboardStatsDTO {
     private Long openVulnerabilities;
     private Long criticalVulnerabilities;
     private Long resolvedThisMonth;
+    private Double mttrDays;
     private String systemStatus;
     private List<Map<String, Object>> severityDistribution;
     private List<Map<String, Object>> statusDistribution;

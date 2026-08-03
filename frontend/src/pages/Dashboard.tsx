@@ -3,7 +3,7 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import { ShieldAlert, Package, AlertOctagon, CheckCircle2, TrendingDown, Wifi } from 'lucide-react'
+import { ShieldAlert, Package, AlertOctagon, CheckCircle2, TrendingDown, Wifi, Clock } from 'lucide-react'
 import { dashboardApi } from '../services/api'
 import type { DashboardStats } from '../types'
 import StatCard from '../components/StatCard'
@@ -23,6 +23,12 @@ function ChartSkeleton({ h = 200 }: { h?: number }) {
   return <div className="skeleton rounded-xl w-full" style={{ height: h }} />
 }
 
+function formatMttr(days?: number | null): string {
+  if (days === null || days === undefined) return '—'
+  if (days < 1) return `${Math.round(days * 24)} h`
+  return `${days.toFixed(1)} d`
+}
+
 export default function Dashboard() {
   const [stats,   setStats]   = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,6 +46,7 @@ export default function Dashboard() {
     { title: 'Abiertas',            value: stats?.openVulnerabilities,    icon: AlertOctagon, color: 'red'     as const },
     { title: 'Críticas',            value: stats?.criticalVulnerabilities,icon: TrendingDown, color: 'red'     as const },
     { title: 'Resueltas este mes',  value: stats?.resolvedThisMonth,      icon: CheckCircle2, color: 'emerald' as const },
+    { title: 'MTTR',                value: formatMttr(stats?.mttrDays),   icon: Clock,        color: 'amber'   as const },
     { title: 'Estado del sistema',  value: stats?.systemStatus,           icon: Wifi,         color: 'sky'     as const },
   ]
 

@@ -31,6 +31,9 @@ public class DashboardService {
         LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
         long resolvedThisMonth     = vulnRepository.countResolvedBetween(startOfMonth, LocalDateTime.now());
 
+        // MTTR real (detección → resolución), null si aún no hay resueltas
+        Double mttrDays = vulnRepository.findAverageMttrDays();
+
         String systemStatus = scanReportRepository
                 .findAllByOrderByExecutedAtDesc(PageRequest.of(0, 1))
                 .stream().findFirst()
@@ -71,6 +74,7 @@ public class DashboardService {
                 .openVulnerabilities(openVulns)
                 .criticalVulnerabilities(criticals)
                 .resolvedThisMonth(resolvedThisMonth)
+                .mttrDays(mttrDays)
                 .systemStatus(systemStatus)
                 .severityDistribution(severityDist)
                 .statusDistribution(statusDist)
