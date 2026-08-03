@@ -1,4 +1,7 @@
-version: '3.8'
+# ── Red dedicada del stack ────────────────────────────────────────────────────
+networks:
+  gef_net:
+    driver: bridge
 
 services:
 
@@ -6,57 +9,90 @@ services:
   postgres:
     image: postgres:15
     container_name: vuln_postgres
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: security
-      POSTGRES_USER: security_user
-      POSTGRES_PASSWORD: security_pass
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init:/docker-entrypoint-initdb.d
-    # CRÍTICO: healthcheck para que los demás servicios esperen
-    # que postgres esté realmente listo para aceptar conexiones,
-    # no solo que el contenedor haya arrancado
+    networks:
+      - gef_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U security_user -d security"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
 
-  # ── Automatización n8n ───────────────────────────────────────────────────────
+  # ── Automatización n8n (imagen propia con bootstrap automático) ───────────────
   n8n:
-    image: n8nio/n8n
+    build:
+      context: ./n8n
+      args:
+        N8N_VERSION: ${N8N_VERSION}
     container_name: vuln_n8n
-    restart: always
+    restart: unless-stopped
     ports:
       - "5678:5678"
     volumes:
       - n8n_data:/home/node/.n8n
+      - ./workflows:/setup/workflows:ro
+      - ./n8n-provisioning:/setup/credentials:ro
     environment:
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_DATABASE=n8n
-      - DB_POSTGRESDB_USER=security_user
-      - DB_POSTGRESDB_PASSWORD=security_pass
-      - N8N_ENCRYPTION_KEY=gef_secure_2026_master_key
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - TZ=${GENERIC_TIMEZONE}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
+      - N8N_PORT=5678
+      - WEBHOOK_URL=${N8N_WEBHOOK_PUBLIC_URL}
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_OWNER_EMAIL=${N8N_OWNER_EMAIL}
+      - N8N_OWNER_FIRST_NAME=${N8N_OWNER_FIRST_NAME}
+      - N8N_OWNER_LAST_NAME=${N8N_OWNER_LAST_NAME}
+      - N8N_OWNER_PASSWORD=${N8N_OWNER_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    networks:
+      - gef_net
     depends_on:
       postgres:
-        condition: service_healthy   # espera el healthcheck
+        condition: service_healthy
+    healthcheck:
+      # /rest/settings (no requiere auth) en vez de /healthz/readiness: este
+      # ultimo pasa a 200 antes de que el router REST este montado del todo
+      # (condicion de carrera verificada), lo que dejaria pasar el healthcheck
+      # antes de que /webhook/* este realmente servible para el backend.
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:5678/rest/settings || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
   # ── pgAdmin ──────────────────────────────────────────────────────────────────
   pgadmin:
     image: dpage/pgadmin4
     container_name: vuln_pgadmin
-    restart: always
+    restart: unless-stopped
     ports:
       - "8080:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    networks:
+      - gef_net
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,34 +101,36 @@ services:
   backend:
     build: ./backend
     container_name: gef_backend
-    restart: always
+    restart: unless-stopped
     ports:
-      - "8081:8080"    # 8081 hacia afuera para no chocar con pgAdmin en 8080
+      - "8081:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/security
-      SPRING_DATASOURCE_USERNAME: security_user
-      SPRING_DATASOURCE_PASSWORD: security_pass
-      N8N_WEBHOOK_URL: http://n8n:5678/webhook/tu-id
-      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/auditoria-automatizada
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+    networks:
+      - gef_net
     depends_on:
       postgres:
-        condition: service_healthy   # espera que postgres pase el healthcheck
+        condition: service_healthy
       n8n:
-        condition: service_started   # n8n no tiene healthcheck, alcanza con started
+        condition: service_healthy
 
   # ── Frontend GEF Secure ──────────────────────────────────────────────────────
   frontend:
     build: ./frontend
     container_name: gef_frontend
-    restart: always
+    restart: unless-stopped
     ports:
       - "3000:80"
+    networks:
+      - gef_net
     depends_on:
       backend:
         condition: service_started
 
 volumes:
   pgdata:
-    external: true
-    name: vuln-project_pgdata
   n8n_data:
