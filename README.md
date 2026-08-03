@@ -5,10 +5,6 @@ inventario de activos contra GitHub Advisory Database y CISA KEV, prioriza segú
 criticidad de negocio del entorno, y gestiona el ciclo de vida (Detectada → En Análisis →
 Resuelta) con métricas de MTTR.
 
-> **Documentación completa**: ver [`GEF_Secure_Automatizacion_n8n.pdf`](./GEF_Secure_Automatizacion_n8n.pdf)
-> para el detalle de arquitectura, cada variable de entorno, checklist de validación y
-> troubleshooting extendido. Este README es la versión corta para levantar el proyecto.
-
 ## Stack
 
 - **Backend**: Spring Boot 3 / Java 21
@@ -65,8 +61,23 @@ Buscar la línea `[gef-bootstrap] Bootstrap inicial completo.`
 
 La base arranca con datos precargados (3 entornos, 6 activos, 9 vulnerabilidades en
 distintos estados) para que el Dashboard, el Inventario y el Kanban se vean funcionando
-desde el primer momento — ver `init/02-seed-data.sql`. Se cargan siempre en un volumen
-nuevo, igual que el resto de la inicialización de la base.
+desde el primer momento. Se cargan siempre en un volumen nuevo, igual que el resto de la
+inicialización de la base.
+
+## Escaneo de vulnerabilidades
+
+El backend dispara escaneos contra n8n en 3 alcances, todos vía el mismo webhook
+(`N8nWebhookService`) y con la misma UI de progreso (polling acotado):
+
+| Alcance | Cómo se dispara | Endpoint |
+|---|---|---|
+| Por activo | Botón en la fila del activo, en Inventario | `POST /api/assets/{id}/scan` |
+| Por entorno | Selector de entorno + botón, en Inventario | `POST /api/environments/{id}/scan` |
+| Global | Botón "Escanear todo", en el Dashboard | `POST /api/scan` |
+
+Además corre un scan global automático todos los días a las 21:00 (scheduler propio de
+n8n, no requiere el backend arriba). El resultado más reciente de cada alcance se consulta
+con `GET /api/scan-reports/latest?targetType=...&targetName=...`.
 
 ## Validación rápida
 
@@ -75,8 +86,6 @@ docker compose ps                                    # todo healthy/running
 docker compose exec n8n n8n list:workflow             # workflow presente y activo
 docker compose exec n8n n8n list:credentials           # 3 credenciales cargadas
 ```
-
-Checklist completo (11 puntos) en el PDF, sección 10.
 
 ## Problemas comunes
 
@@ -88,8 +97,6 @@ Checklist completo (11 puntos) en el PDF, sección 10.
 - **Instalación limpia falla al crear el volumen de Postgres**: correr
   `docker compose down -v` antes de un `docker compose up -d` en un entorno de prueba (nunca
   contra datos reales sin backup).
-
-Troubleshooting extendido con más síntomas y comandos de diagnóstico: PDF, sección 11.
 
 ## Estructura relevante
 

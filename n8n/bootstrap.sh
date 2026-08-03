@@ -4,19 +4,28 @@ set -eu
 DATA_DIR="/home/node/.n8n"
 INIT_MARKER="$DATA_DIR/.gef-bootstrap-done"
 WORKFLOWS_DIR="/setup/workflows"
-CREDS_FILE="/setup/credentials/credentials.json"
+CREDS_TEMPLATE="/setup/credentials/credentials.json"
+CREDS_RESOLVED="/tmp/credentials-resolved.json"
 
-# n8n usa esta variable en tiempo de ejecucion para inyectar los secretos
-# reales; se reconstruye en cada arranque por si rotaron valores en .env
-export CREDENTIALS_OVERWRITE_DATA=$(cat <<JSON
-{
-  "postgres": {"host":"postgres","port":5432,"database":"security",
-               "user":"${POSTGRES_USER}","password":"${POSTGRES_PASSWORD}"},
-  "slackApi": {"accessToken":"${SLACK_BOT_TOKEN}"},
-  "httpHeaderAuth": {"name":"Authorization","value":"Bearer ${GITHUB_TOKEN}"}
+# CREDENTIALS_OVERWRITE_DATA (variable de entorno) no tuvo efecto en esta
+# version de n8n (2.4.6) -- probado con timeout, JSON en una sola linea y
+# CREDENTIALS_OVERWRITE_PERSISTENCE=true, y el nodo Postgres del workflow
+# siguio recibiendo el placeholder literal ("password authentication
+# failed for user \"SET_BY_ENV\""). En su lugar, se sustituyen los valores
+# reales directamente en una copia del template de credenciales (que en
+# git solo tiene placeholders __POSTGRES_USER__ etc.) y se importa esa
+# copia. /tmp no persiste en el volumen ni entre reinicios del contenedor,
+# y el archivo se borra apenas termina el import.
+resolve_and_import_credentials() {
+  sed \
+    -e "s|__POSTGRES_USER__|${POSTGRES_USER}|g" \
+    -e "s|__POSTGRES_PASSWORD__|${POSTGRES_PASSWORD}|g" \
+    -e "s|__SLACK_BOT_TOKEN__|${SLACK_BOT_TOKEN}|g" \
+    -e "s|__GITHUB_TOKEN__|${GITHUB_TOKEN}|g" \
+    "$CREDS_TEMPLATE" > "$CREDS_RESOLVED"
+  n8n import:credentials --input="$CREDS_RESOLVED"
+  rm -f "$CREDS_RESOLVED"
 }
-JSON
-)
 
 # Publica (activa) todos los workflows importados. n8n 2.x no tiene un
 # --all para publish:workflow (fue removido) -- hay que iterar por ID.
@@ -69,7 +78,7 @@ JSON
   fi
 
   echo "[gef-bootstrap] Owner creado. Importando credenciales y workflows..."
-  n8n import:credentials --input="$CREDS_FILE"
+  resolve_and_import_credentials
   n8n import:workflow --separate --input="$WORKFLOWS_DIR/"
   publish_all
 
@@ -85,7 +94,12 @@ JSON
   touch "$INIT_MARKER"
   echo "[gef-bootstrap] Bootstrap inicial completo."
 else
-  echo "[gef-bootstrap] Volumen ya inicializado. Verificando cambios en workflows..."
+  echo "[gef-bootstrap] Volumen ya inicializado. Re-importando credenciales (por si rotaron) y verificando cambios en workflows..."
+  # import:credentials es idempotente por ID (confirmado) -- se puede
+  # re-correr en cada arranque sin duplicar nada, y es lo que da soporte
+  # a rotacion de secretos ya que CREDENTIALS_OVERWRITE_DATA no funciona.
+  resolve_and_import_credentials
+
   CHANGED=0
   for f in "$WORKFLOWS_DIR"/*.json; do
     HASH_FILE="$DATA_DIR/.hash-$(basename "$f").md5"

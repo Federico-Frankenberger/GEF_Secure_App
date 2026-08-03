@@ -28,6 +28,13 @@ public class GlobalExceptionHandler {
                 .body(new ErrorBody(409, ex.getMessage()));
     }
 
+    @ExceptionHandler(N8nUnavailableException.class)
+    public ResponseEntity<ErrorBody> handleN8nUnavailable(N8nUnavailableException ex) {
+        log.error("n8n no respondió: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new ErrorBody(502, ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorBody> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();

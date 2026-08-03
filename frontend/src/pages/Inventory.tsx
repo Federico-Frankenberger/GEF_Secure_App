@@ -6,6 +6,7 @@ import type { Asset, AssetRequest, Environment } from '../types'
 import PageHeader from '../components/PageHeader'
 import Table, { Column } from '../components/Table'
 import Modal from '../components/Modal'
+import { useScanPolling } from '../hooks/useScanPolling'
 
 const CRITICALITY_BADGE: Record<string, string> = {
   'CRITICA':  'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
@@ -32,6 +33,7 @@ export default function Inventory() {
   const [form,         setForm]         = useState<AssetRequest>(EMPTY_FORM)
   const [saving,       setSaving]       = useState(false)
   const [scanning,     setScanning]     = useState<number | null>(null)
+  const { start: startPolling } = useScanPolling()
 
   const load = useCallback((q = '') => {
     setLoading(true)
@@ -97,14 +99,17 @@ export default function Inventory() {
     }
   }
 
-  const handleScan = async (id: number) => {
-    setScanning(id)
+  const handleScan = async (asset: Asset) => {
+    setScanning(asset.id)
     try {
-      await assetApi.triggerScan(id)
-      toast.success('Escaneo disparado vía n8n')
-      load()
-    } catch {
-      toast.error('Error al disparar el escaneo')
+      await assetApi.triggerScan(asset.id)
+      toast('Escaneo disparado, esperando resultado…')
+      startPolling('ACTIVO', asset.name, () => {
+        toast.success(`Escaneo de "${asset.name}" completo`)
+        load()
+      })
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al disparar el escaneo')
     } finally {
       setScanning(null)
     }
@@ -136,7 +141,7 @@ export default function Inventory() {
       key: 'id', label: 'Acciones',
       render: (v, row) => (
         <div className="flex items-center gap-1">
-          <button onClick={() => handleScan(Number(v))} disabled={scanning === Number(v)} className="btn-ghost !py-1 !px-2 text-emerald-400">
+          <button onClick={() => handleScan(row)} disabled={scanning === Number(v)} className="btn-ghost !py-1 !px-2 text-emerald-400">
             {scanning === Number(v) ? <RefreshCw size={13} className="animate-spin" /> : <ScanLine size={13} />}
           </button>
           <button onClick={() => openEdit(row)} className="btn-ghost !py-1 !px-2"><Pencil size={13} /></button>

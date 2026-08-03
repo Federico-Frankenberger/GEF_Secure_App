@@ -3,6 +3,7 @@ package com.gef.gefsecureapp.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.servlet.config.annotation.*;
 
@@ -16,7 +17,14 @@ public class AppConfig implements WebMvcConfigurer {
 
     @Bean
     public RestClient.Builder restClientBuilder() {
-        return RestClient.builder();
+        // Sin timeout explícito, RestClient puede quedar colgado indefinidamente
+        // si n8n no responde (verificado: el bean por defecto no tiene límite).
+        // El webhook de n8n responde "onReceived" casi al instante en operación
+        // normal, así que estos valores son generosos, no ajustados al límite.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3_000);
+        factory.setReadTimeout(5_000);
+        return RestClient.builder().requestFactory(factory);
     }
 
     @Override

@@ -105,6 +105,21 @@ export interface DashboardStats {
   trendsLast30Days:     Array<{ date: string; detectadas: number; resueltas: number }>
 }
 
+// ── Scan (activo / entorno / global) ─────────────────────────────────────────
+export type ScanTargetType = 'ACTIVO' | 'ENTORNO' | 'GLOBAL'
+
+export interface ScanReport {
+  executedAt: string
+  totalDetected: number
+  criticals: number
+  highs: number
+  mediums: number
+  lows: number
+  systemStatus: string
+  targetType: ScanTargetType
+  targetName: string
+}
+
 // ── SystemError ───────────────────────────────────────────────────────────────
 export interface SystemError {
   id: number

@@ -45,7 +45,10 @@ export default function Dashboard() {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader title="Dashboard" subtitle="Vista general del estado de seguridad" />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Vista general del estado de seguridad"
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 mb-6">

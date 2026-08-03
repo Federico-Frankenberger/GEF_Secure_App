@@ -6,6 +6,7 @@ import type {
   User, UserRequest,
   DashboardStats,
   SystemError,
+  ScanReport,
 } from '../types'
 
 const http = axios.create({
@@ -67,6 +68,17 @@ export const userApi = {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const dashboardApi = {
   getStats: () => http.get<DashboardStats>('/dashboard/stats'),
+}
+
+// ── Scan (activo / entorno / global) ─────────────────────────────────────────
+export const scanApi = {
+  triggerEnvironment: (id: number) => http.post<void>(`/environments/${id}/scan`),
+  triggerGlobal:      ()           => http.post<void>('/scan'),
+  latestReport: (targetType: string, targetName: string) =>
+    http.get<ScanReport>('/scan-reports/latest', {
+      params: { targetType, targetName },
+      validateStatus: s => s === 200 || s === 204,
+    }),
 }
 
 // ── System Errors ─────────────────────────────────────────────────────────────

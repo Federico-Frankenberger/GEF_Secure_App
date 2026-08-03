@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Package, KanbanSquare,
-  Settings, ShieldCheck, Activity,
+  Settings, ShieldCheck, Activity, ScanLine,
 } from 'lucide-react'
 
 const links = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'  },
+  { to: '/scans',      icon: ScanLine,        label: 'Escaneos'   },
   { to: '/inventory',  icon: Package,          label: 'Inventario' },
   { to: '/kanban',     icon: KanbanSquare,      label: 'Auditoría'  },
   { to: '/settings',   icon: Settings,          label: 'Config'     },

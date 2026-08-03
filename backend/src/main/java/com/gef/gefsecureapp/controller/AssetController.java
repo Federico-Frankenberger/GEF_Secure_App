@@ -1,7 +1,6 @@
 package com.gef.gefsecureapp.controller;
 
 import com.gef.gefsecureapp.dto.AssetDTO;
-import com.gef.gefsecureapp.repository.AssetRepository;
 import com.gef.gefsecureapp.service.AssetService;
 import com.gef.gefsecureapp.service.N8nWebhookService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,7 +19,6 @@ import java.util.List;
 public class AssetController {
 
     private final AssetService assetService;
-    private final AssetRepository assetRepository;
     private final N8nWebhookService webhookService;
 
     @GetMapping
@@ -60,9 +58,7 @@ public class AssetController {
     @Operation(summary = "Disparar escaneo de un activo vía n8n")
     public ResponseEntity<AssetDTO.Response> triggerScan(@PathVariable Long id) {
         AssetDTO.Response updated = assetService.triggerScan(id);
-        assetRepository.findById(id).ifPresent(a ->
-                webhookService.triggerScan(a.getId(), a.getSoftware(), a.getVersion(), a.getEcosystem())
-        );
+        webhookService.triggerScanForAsset(updated.getName());
         return ResponseEntity.ok(updated);
     }
 }
