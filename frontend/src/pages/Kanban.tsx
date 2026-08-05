@@ -25,7 +25,7 @@ export default function Kanban() {
   const [saving,   setSaving]   = useState(false)
 
   // Filtros inicializados: Fecha de HOY por defecto
-  const [filterDate, setFilterDate] = useState<string>(new Date().toLocaleDateString('en-CA'))
+  const [filterDate, setFilterDate] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('TODOS')
 
   const load = useCallback(() => {
@@ -64,11 +64,11 @@ export default function Kanban() {
 
     setRawVulns(prev => prev.map(v => v.id === vulnId ? { ...v, status: newStatus } : v))
 
-    try {
+  try {
       await vulnApi.updateStatus(vulnId, { status: newStatus })
       toast.success(`Estado: ${newStatus}`)
-    } catch {
-      toast.error('Error al actualizar')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al actualizar')
       load()
     }
   }
@@ -78,7 +78,7 @@ export default function Kanban() {
     setForm({ status: vuln.status, assignedTo: vuln.assignedTo ?? '', decision: vuln.decision ?? '' })
   }
 
-  const handleSave = async () => {
+const handleSave = async () => {
     if (!selected) return
     setSaving(true)
     try {
@@ -86,8 +86,8 @@ export default function Kanban() {
       toast.success('Actualizado')
       setSelected(null)
       load()
-    } catch {
-      toast.error('Error al guardar')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar')
     } finally {
       setSaving(false)
     }
