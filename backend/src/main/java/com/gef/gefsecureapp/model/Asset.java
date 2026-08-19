@@ -13,23 +13,20 @@ public class Asset {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(length = 255)
+    @Column(length = 150, nullable = false)
     private String name;
 
-    @Column(length = 255)
-    private String software;
-
-    @Column(length = 50)
-    private String ecosystem;
-
-    @Column(length = 50)
-    private String version;
-
-    @Column(name = "last_scan")
-    private LocalDateTime lastScan;
+    @Column(name = "asset_type", length = 30, nullable = false)
+    private String assetType;
 
     @Column(columnDefinition = "text")
     private String description;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "environment_id")

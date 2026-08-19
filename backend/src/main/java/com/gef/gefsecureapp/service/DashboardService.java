@@ -15,23 +15,29 @@ import java.util.*;
 @RequiredArgsConstructor
 public class DashboardService {
 
-    private final AssetRepository assetRepository;
-    private final VulnerabilityAuditRepository vulnRepository;
+    private final SoftwareComponentRepository softwareComponentRepository;
+    private final AssetVulnerabilityRepository vulnRepository;
     private final ScanReportRepository scanReportRepository;
 
     @Transactional(readOnly = true)
     public DashboardStatsDTO getStats() {
 
-        long totalAssets    = assetRepository.count();
+        // "Total Activos" sigue contando componentes de software (no hosts):
+        // decision tomada al pasar a Fase 2 para no mostrar 0 apenas se migre,
+        // ya que todavia no hay hosts cargados.
+        long totalAssets    = softwareComponentRepository.count();
+        // Etapa 4: cuenta vulnerabilidades persistentes (AssetVulnerability),
+        // no detecciones individuales -- un CVE re-detectado en 5 escaneos
+        // cuenta una sola vez, no cinco.
         long totalVulns     = vulnRepository.count();
-        long openVulns      = vulnRepository.countByStatus("DETECTADA")
-                            + vulnRepository.countByStatus("EN_ANALISIS");
+        long openVulns      = vulnRepository.countByTriageStatus("DETECTADA")
+                            + vulnRepository.countByTriageStatus("EN_ANALISIS");
         long criticals      = vulnRepository.countByPriority("CRITICAL");
 
         LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
         long resolvedThisMonth     = vulnRepository.countResolvedBetween(startOfMonth, LocalDateTime.now());
 
-        // MTTR real (detección → resolución), null si aún no hay resueltas
+        // MTTR real (primera detección → resolución por el analista), null si aún no hay resueltas
         Double mttrDays = vulnRepository.findAverageMttrDays();
 
         String systemStatus = scanReportRepository
@@ -48,11 +54,12 @@ public class DashboardService {
 
         // Status para BarChart
         List<Map<String, Object>> statusDist = new ArrayList<>();
-        for (Object[] row : vulnRepository.countGroupedByStatus()) {
+        for (Object[] row : vulnRepository.countGroupedByTriageStatus()) {
             statusDist.add(Map.of("name", row[0], "value", row[1]));
         }
 
-        // Tendencia 30 días para AreaChart
+        // Tendencia 30 días para AreaChart -- detectadas = nuevas (first_detected_at),
+        // no re-detecciones del mismo CVE en escaneos posteriores.
         LocalDateTime since = LocalDateTime.now().minusDays(30);
         Map<String, Map<String, Object>> trendMap = new LinkedHashMap<>();
         for (Object[] row : vulnRepository.countDailyDetections(since)) {

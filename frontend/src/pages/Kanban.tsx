@@ -7,6 +7,7 @@ import type { VulnerabilityAudit, VulnStatus, User } from '../types'
 import VulnerabilityCard from '../components/VulnerabilityCard'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
+import { useAuth } from '../contexts/AuthContext'
 
 const COLUMNS: { id: VulnStatus; label: string; color: string }[] = [
   { id: 'DETECTADA',   label: 'Detectadas',  color: 'border-red-500/40    text-red-400'     },
@@ -17,6 +18,13 @@ const COLUMNS: { id: VulnStatus; label: string; color: string }[] = [
 type Board = Record<VulnStatus, VulnerabilityAudit[]>
 
 export default function Kanban() {
+  const { user } = useAuth()
+  const isAuditor = user?.role === 'AUDITOR'
+  // GET /api/users solo lo permite el backend a ADMIN y SECURITY_ANALYST
+  const canListUsers = user?.role === 'ADMIN' || user?.role === 'SECURITY_ANALYST'
+  // DELETE /api/vulnerabilities/{id} solo lo permite el backend a ADMIN y SECURITY_ANALYST
+  // (a diferencia de PATCH .../status, que ASSET_OWNER sí puede usar dentro de su scope)
+  const canDelete = user?.role === 'ADMIN' || user?.role === 'SECURITY_ANALYST'
   const [rawVulns, setRawVulns] = useState<VulnerabilityAudit[]>([])
   const [users,    setUsers]    = useState<User[]>([])
   const [loading,  setLoading]  = useState(true)
@@ -30,14 +38,14 @@ export default function Kanban() {
 
   const load = useCallback(() => {
     setLoading(true)
-    Promise.all([vulnApi.getAll(), userApi.getAll()])
+    Promise.all([vulnApi.getAll(), canListUsers ? userApi.getAll() : Promise.resolve({ data: [] as User[] })])
       .then(([vr, ur]) => {
         setRawVulns(vr.data)
         setUsers(ur.data)
       })
       .catch(() => toast.error('Error al cargar el tablero'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [canListUsers])
 
   useEffect(() => { load() }, [load])
 
@@ -58,7 +66,7 @@ export default function Kanban() {
   }, [rawVulns, filterDate, filterStatus])
 
   const onDragEnd = async ({ source, destination, draggableId }: DropResult) => {
-    if (!destination || source.droppableId === destination.droppableId) return
+    if (isAuditor || !destination || source.droppableId === destination.droppableId) return
     const vulnId = parseInt(draggableId)
     const newStatus = destination.droppableId as VulnStatus
 
@@ -177,7 +185,7 @@ const handleSave = async () => {
                         ${snapshot.isDraggingOver ? 'bg-brand-600/10 ring-1 ring-brand-600/30' : 'bg-surface-800/30'}`}
                     >
                       {(board[col.id] ?? []).map((vuln, idx) => (
-                        <VulnerabilityCard key={vuln.id} vuln={vuln} index={idx} onEdit={openEdit} />
+                        <VulnerabilityCard key={vuln.id} vuln={vuln} index={idx} onEdit={openEdit} dragDisabled={isAuditor} />
                       ))}
                       {provided.placeholder}
                       {!(board[col.id] ?? []).length && (
@@ -207,13 +215,13 @@ const handleSave = async () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Estado</label>
-                <select className="input w-full bg-surface-800 border-white/10 text-xs" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                <select className="input w-full bg-surface-800 border-white/10 text-xs" value={form.status} disabled={isAuditor} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
                   {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Asignar Responsable</label>
-                <select className="input w-full bg-surface-800 border-white/10 text-xs" value={form.assignedTo} onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}>
+                <select className="input w-full bg-surface-800 border-white/10 text-xs" value={form.assignedTo} disabled={isAuditor} onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}>
                   <option value="">Sin asignar</option>
                   {users.map(u => <option key={u.id} value={u.username}>{u.fullName || u.username}</option>)}
                 </select>
@@ -222,22 +230,27 @@ const handleSave = async () => {
 
             <div>
               <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Notas de Remediación</label>
-              <textarea 
-                className="input w-full bg-surface-800 border-white/10 text-xs resize-none" 
-                rows={4} 
-                value={form.decision} 
-                onChange={e => setForm(f => ({ ...f, decision: e.target.value }))} 
-                placeholder="Indicar pasos seguidos o decisión tomada..." 
+              <textarea
+                className="input w-full bg-surface-800 border-white/10 text-xs resize-none"
+                rows={4}
+                value={form.decision}
+                disabled={isAuditor}
+                onChange={e => setForm(f => ({ ...f, decision: e.target.value }))}
+                placeholder="Indicar pasos seguidos o decisión tomada..."
               />
             </div>
 
             <div className="flex justify-between items-center pt-3 border-t border-white/5">
-              <button onClick={() => handleDelete(selected.id)} className="text-[10px] uppercase font-bold text-red-500 hover:text-red-400 transition-colors">Eliminar</button>
-              <div className="flex gap-2">
+              {canDelete && (
+                <button onClick={() => handleDelete(selected.id)} className="text-[10px] uppercase font-bold text-red-500 hover:text-red-400 transition-colors">Eliminar</button>
+              )}
+              <div className="flex gap-2 ml-auto">
                 <button onClick={() => setSelected(null)} className="btn-ghost text-xs px-4">Cerrar</button>
-                <button onClick={handleSave} disabled={saving} className="btn-primary text-xs px-6 py-2 shadow-lg shadow-brand-500/20">
-                  {saving ? 'Guardando...' : 'Aplicar Cambios'}
-                </button>
+                {!isAuditor && (
+                  <button onClick={handleSave} disabled={saving} className="btn-primary text-xs px-6 py-2 shadow-lg shadow-brand-500/20">
+                    {saving ? 'Guardando...' : 'Aplicar Cambios'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -2,6 +2,8 @@ package com.gef.gefsecureapp.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 
 @Entity
@@ -36,6 +38,11 @@ public class ScanReport {
     @Column(name = "report_message", columnDefinition = "text")
     private String reportMessage;
 
+    // JdbcTypeCode explicito -- sin esto Hibernate 6 bindea el String como
+    // varchar y Postgres rechaza el INSERT porque la columna es jsonb (nunca
+    // se detecto antes porque todo insert de ScanReport via n8n usaba SQL
+    // nativo con ::jsonb explicito, bypaseando Hibernate por completo).
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "environment_breakdown", columnDefinition = "jsonb")
     private String environmentBreakdown;
 
@@ -44,4 +51,35 @@ public class ScanReport {
 
     @Column(name = "target_name", length = 100)
     private String targetName;
+
+    @Column(name = "public_code", length = 20, unique = true)
+    private String publicCode;
+
+    // PENDING/RUNNING/COMPLETED/FAILED/PARTIALLY_COMPLETED -- distinto de
+    // systemStatus, que es un indicador de salud ("ESTABLE"/"ACCION REQUERIDA"),
+    // no de ciclo de vida del escaneo.
+    @Column(length = 25, nullable = false)
+    private String status;
+
+    @Column(name = "started_at", nullable = false)
+    private LocalDateTime startedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "triggered_by")
+    private User triggeredBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "software_component_id")
+    private SoftwareComponent softwareComponent;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "environment_id")
+    private Environment environment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "asset_id")
+    private Asset asset;
+
+    @Column(name = "error_message", columnDefinition = "text")
+    private String errorMessage;
 }

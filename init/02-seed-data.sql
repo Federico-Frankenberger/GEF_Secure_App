@@ -48,46 +48,46 @@ INSERT INTO public.vulnerabilities_audit
     (asset_id, cve_id, ghsa_id, cvss, exploited, priority, decision, assigned_to, status, detected_at, resolved_at)
 VALUES
     ((SELECT id FROM public.assets WHERE software = 'spring-boot-starter-web'),
-        'CVE-2023-34042', 'GHSA-crjg-3vgr-p9qh', '9.8', TRUE, 'CRITICA',
+        'CVE-2023-34042', 'GHSA-crjg-3vgr-p9qh', '9.8', TRUE, 'CRITICAL',
         'Actualizado a la versión parcheada 3.1.5', 'fede.frankenberger', 'RESUELTA',
         NOW() - INTERVAL '20 days', NOW() - INTERVAL '15 days'),
 
     ((SELECT id FROM public.assets WHERE software = 'postgres'),
-        'CVE-2024-10977', 'GHSA-w22j-27h8-4gjq', '8.1', FALSE, 'ALTA',
+        'CVE-2024-10977', 'GHSA-w22j-27h8-4gjq', '8.1', FALSE, 'HIGH',
         'Aplicado parche de seguridad del proveedor', 'fede.frankenberger', 'RESUELTA',
         NOW() - INTERVAL '25 days', NOW() - INTERVAL '22 days'),
 
     ((SELECT id FROM public.assets WHERE software = 'postgres'),
-        'CVE-2024-4317', NULL, '7.5', TRUE, 'CRITICA',
+        'CVE-2024-4317', NULL, '7.5', TRUE, 'CRITICAL',
         'En revisión por el equipo de infraestructura', 'fede.frankenberger', 'EN_ANALISIS',
         NOW() - INTERVAL '4 days', NULL),
 
     ((SELECT id FROM public.assets WHERE software = 'spring-boot-starter-web'),
-        'CVE-2023-20873', 'GHSA-cmhx-cq75-c74m', '5.3', FALSE, 'MEDIA',
+        'CVE-2023-20873', 'GHSA-cmhx-cq75-c74m', '5.3', FALSE, 'MEDIUM',
         NULL, 'SIN_ASIGNAR', 'DETECTADA',
         NOW() - INTERVAL '1 days', NULL),
 
     ((SELECT id FROM public.assets WHERE software = 'express'),
-        'CVE-2024-29041', 'GHSA-rv95-896h-c2vc', '6.1', FALSE, 'ALTA',
+        'CVE-2024-29041', 'GHSA-rv95-896h-c2vc', '6.1', FALSE, 'HIGH',
         'Evaluando impacto en el gateway interno', 'auditor.demo', 'EN_ANALISIS',
         NOW() - INTERVAL '6 days', NULL),
 
     ((SELECT id FROM public.assets WHERE software = 'express'),
-        'CVE-2022-24999', 'GHSA-hrpp-h998-j3pp', '3.7', FALSE, 'BAJA',
+        'CVE-2022-24999', 'GHSA-hrpp-h998-j3pp', '3.7', FALSE, 'LOW',
         'Riesgo bajo, corregido en el próximo build', 'auditor.demo', 'RESUELTA',
         NOW() - INTERVAL '10 days', NOW() - INTERVAL '9 days'),
 
     ((SELECT id FROM public.assets WHERE software = 'axios'),
-        'CVE-2023-45857', 'GHSA-wf5p-g6vw-rhxx', '6.5', FALSE, 'MEDIA',
+        'CVE-2023-45857', 'GHSA-wf5p-g6vw-rhxx', '6.5', FALSE, 'MEDIUM',
         NULL, 'SIN_ASIGNAR', 'DETECTADA',
         NOW() - INTERVAL '2 days', NULL),
 
     ((SELECT id FROM public.assets WHERE software = 'lodash'),
-        'CVE-2021-23337', 'GHSA-35jh-r3h4-6jhm', '4.0', FALSE, 'BAJA',
+        'CVE-2021-23337', 'GHSA-35jh-r3h4-6jhm', '4.0', FALSE, 'LOW',
         NULL, 'SIN_ASIGNAR', 'DETECTADA',
         NOW() - INTERVAL '5 days', NULL),
 
     ((SELECT id FROM public.assets WHERE software = 'react'),
-        'CVE-2024-11072', NULL, '5.9', FALSE, 'MEDIA',
+        'CVE-2024-11072', NULL, '5.9', FALSE, 'MEDIUM',
         'Actualizado a versión sin el componente afectado', 'fede.frankenberger', 'RESUELTA',
         NOW() - INTERVAL '8 days', NOW() - INTERVAL '1 days');

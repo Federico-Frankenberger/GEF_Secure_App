@@ -13,8 +13,56 @@ export interface EnvironmentRequest {
   description?: string
 }
 
-// ── Asset ─────────────────────────────────────────────────────────────────────
+// ── Catálogos administrables (Config) ──────────────────────────────────────────
+export interface AssetType {
+  id: number
+  name: string
+}
+
+export interface AssetTypeRequest {
+  name: string
+}
+
+export interface Ecosystem {
+  id: number
+  name: string
+}
+
+export interface EcosystemRequest {
+  name: string
+}
+
+// ── Asset (activo real: servidor, aplicación, VM, contenedor) ─────────────────
 export interface Asset {
+  id: number
+  name: string
+  assetType: string
+  environmentId: number | null
+  environmentName: string | null
+  description: string | null
+  createdAt: string | null
+}
+
+export interface AssetRequest {
+  name: string
+  assetType?: string
+  environmentId?: number
+  description?: string
+}
+
+// Activo eliminado logicamente (panel de restauración, ADMIN/SECURITY_ANALYST)
+export interface DeletedAsset {
+  id: number
+  name: string
+  assetType: string
+  environmentName: string | null
+  deletedAt: string
+  componentsCount: number
+}
+
+// ── SoftwareComponent (paquete instalado, antes "Asset") ──────────────────────
+// El software siempre pertenece a un activo (assetId nunca es null).
+export interface SoftwareComponent {
   id: number
   name: string
   software: string
@@ -23,28 +71,41 @@ export interface Asset {
   environmentId: number | null
   environmentName: string | null
   businessCriticality: string | null
+  assetId: number
+  assetName: string
   lastScan: string | null
   description: string | null
+  catalogued: boolean
+  purl: string | null
 }
 
-export interface AssetRequest {
+export interface SoftwareComponentRequest {
   name: string
   software: string
   ecosystem: string
   version: string
-  environmentId?: number
+  assetId: number
   description?: string
+}
+
+// ── Software Catalog ─────────────────────────────────────────────────────────
+export interface SoftwareCatalogEntry {
+  id: number
+  packageName: string
+  ecosystem: string
+  displayName: string | null
 }
 
 // ── Vulnerability ─────────────────────────────────────────────────────────────
 export type VulnStatus = 'DETECTADA' | 'EN_ANALISIS' | 'RESUELTA'
-export type VulnPriority = 'CRITICA' | 'ALTA' | 'MEDIA' | 'BAJA'
+export type VulnPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface VulnerabilityAudit {
   id: number
   detectedAt: string
   assetId: number | null
   asset: string | null
+  componentName: string | null
   cveId: string | null
   cvss: string | null
   exploited: boolean
@@ -75,6 +136,20 @@ export interface StatusUpdate {
   decision?: string
 }
 
+// ── Auth ──────────────────────────────────────────────────────────────────────
+export interface AuthUser {
+  username: string
+  fullName: string | null
+  role: string
+}
+
+export interface LoginResponse {
+  token: string
+  username: string
+  fullName: string | null
+  role: string
+}
+
 // ── User ──────────────────────────────────────────────────────────────────────
 export interface User {
   id: number
@@ -90,6 +165,25 @@ export interface UserRequest {
   fullName?: string
   email?: string
   role?: string
+  // Requerida al crear; en edición, dejarla en blanco no cambia el hash existente.
+  password?: string
+}
+
+// ── Roles ─────────────────────────────────────────────────────────────────────
+export type UserRole = 'ADMIN' | 'SECURITY_ANALYST' | 'ASSET_OWNER' | 'AUDITOR'
+
+// ── UserAssetAssignment (scope de ASSET_OWNER) ─────────────────────────────────
+export interface UserAssetAssignment {
+  id: number
+  userId: number
+  username: string
+  userFullName: string | null
+  assetId: number
+  assignedAt: string
+}
+
+export interface UserAssetAssignmentRequest {
+  userId: number
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -107,9 +201,11 @@ export interface DashboardStats {
 }
 
 // ── Scan (activo / entorno / global) ─────────────────────────────────────────
-export type ScanTargetType = 'ACTIVO' | 'ENTORNO' | 'GLOBAL'
+export type ScanTargetType = 'ACTIVO' | 'HOST' | 'ENTORNO' | 'GLOBAL'
 
 export interface ScanReport {
+  id: number
+  publicCode: string
   executedAt: string
   totalDetected: number
   criticals: number
@@ -119,6 +215,22 @@ export interface ScanReport {
   systemStatus: string
   targetType: ScanTargetType
   targetName: string
+}
+
+// Comparación entre dos escaneos del historial (Etapa 5 de trazabilidad)
+export interface SeverityChange {
+  cveId: string
+  priorityBefore: string
+  priorityAfter: string
+}
+
+export interface ScanComparison {
+  scanAId: number
+  scanBId: number
+  newInB: VulnerabilityAudit[]
+  resolvedSinceA: VulnerabilityAudit[]
+  persisting: VulnerabilityAudit[]
+  severityChanges: SeverityChange[]
 }
 
 // ── SystemError ───────────────────────────────────────────────────────────────

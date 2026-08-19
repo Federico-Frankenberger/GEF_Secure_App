@@ -8,17 +8,16 @@ import org.mapstruct.*;
 public interface AssetMapper {
 
     @Mapping(target = "id",          ignore = true)
-    @Mapping(target = "lastScan",    ignore = true)
+    @Mapping(target = "createdAt",   ignore = true)
     @Mapping(target = "environment", ignore = true)
     Asset toEntity(AssetDTO.Request dto);
 
-    @Mapping(target = "environmentId",       source = "environment.id")
-    @Mapping(target = "environmentName",     source = "environment.name")
-    @Mapping(target = "businessCriticality", source = "environment.businessCriticality")
+    @Mapping(target = "environmentId",   source = "environment.id")
+    @Mapping(target = "environmentName", source = "environment.name")
     AssetDTO.Response toResponse(Asset entity);
 
     @Mapping(target = "id",          ignore = true)
-    @Mapping(target = "lastScan",    ignore = true)
+    @Mapping(target = "createdAt",   ignore = true)
     @Mapping(target = "environment", ignore = true)
     void updateEntity(AssetDTO.Request dto, @MappingTarget Asset existing);
 }

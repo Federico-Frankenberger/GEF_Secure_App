@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 
 @Getter @Builder
 public class ScanReportDTO {
+    private Long id;
+    private String publicCode;
     private LocalDateTime executedAt;
     private Integer totalDetected;
     private Integer criticals;
@@ -18,6 +20,8 @@ public class ScanReportDTO {
 
     public static ScanReportDTO from(ScanReport r) {
         return ScanReportDTO.builder()
+                .id(r.getId())
+                .publicCode(r.getPublicCode())
                 .executedAt(r.getExecutedAt())
                 .totalDetected(r.getTotalDetected())
                 .criticals(r.getCriticals())

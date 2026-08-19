@@ -7,6 +7,7 @@ import com.gef.gefsecureapp.mapper.UserMapper;
 import com.gef.gefsecureapp.model.User;
 import com.gef.gefsecureapp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional(readOnly = true)
     public List<UserDTO.Response> findAll() {
@@ -35,6 +37,7 @@ public class UserService {
         if (userRepository.existsByUsername(dto.getUsername()))
             throw new ConflictException("Ya existe un usuario con username=" + dto.getUsername());
         User user = userMapper.toEntity(dto);
+        user.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
         user.setCreatedAt(LocalDateTime.now());
         return userMapper.toResponse(userRepository.save(user));
     }
@@ -43,6 +46,8 @@ public class UserService {
     public UserDTO.Response update(Long id, UserDTO.Request dto) {
         User existing = getOrThrow(id);
         userMapper.updateEntity(dto, existing);
+        if (dto.getPassword() != null && !dto.getPassword().isBlank())
+            existing.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
         return userMapper.toResponse(userRepository.save(existing));
     }
 

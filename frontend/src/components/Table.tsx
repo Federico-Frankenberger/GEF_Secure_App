@@ -12,10 +12,13 @@ interface Props<T> {
   loading?: boolean
   emptyMessage?: string
   keyField?: keyof T
+  onRowClick?: (row: T) => void
+  selectedKey?: number | string | null
 }
 
 export default function Table<T extends { id?: number | string }>({
   columns, data, loading, emptyMessage = 'Sin datos', keyField = 'id' as keyof T,
+  onRowClick, selectedKey,
 }: Props<T>) {
   if (loading) {
     return (
@@ -24,12 +27,6 @@ export default function Table<T extends { id?: number | string }>({
           <div key={i} className="skeleton h-10 w-full rounded-lg" />
         ))}
       </div>
-    )
-  }
-
-  if (!data.length) {
-    return (
-      <div className="text-center py-12 text-slate-500 text-sm">{emptyMessage}</div>
     )
   }
 
@@ -49,8 +46,21 @@ export default function Table<T extends { id?: number | string }>({
           </tr>
         </thead>
         <tbody className="divide-y divide-surface-600">
-          {data.map((row, idx) => (
-            <tr key={String(row[keyField] ?? idx)} className="hover:bg-surface-700/50 transition-colors">
+          {!data.length ? (
+            <tr>
+              <td colSpan={columns.length} className="text-center py-12 text-slate-500 text-sm">
+                {emptyMessage}
+              </td>
+            </tr>
+          ) : data.map((row, idx) => (
+            <tr
+              key={String(row[keyField] ?? idx)}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              className={`transition-colors ${onRowClick ? 'cursor-pointer' : ''}
+                ${selectedKey != null && row[keyField] === selectedKey
+                  ? 'bg-brand-600/10 hover:bg-brand-600/15'
+                  : 'hover:bg-surface-700/50'}`}
+            >
               {columns.map((col) => (
                 <td key={String(col.key)} className="px-4 py-3 text-slate-300">
                   {col.render

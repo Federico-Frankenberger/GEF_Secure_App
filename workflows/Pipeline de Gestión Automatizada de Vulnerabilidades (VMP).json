@@ -1,4 +1,5 @@
 {
+  "id": "Ix00EX3vq6sfnRo7zGepF",
   "name": "Pipeline de Gestión Automatizada de Vulnerabilidades (VMP)",
   "nodes": [
     {
@@ -105,7 +106,20 @@
         "url": "https://api.github.com/advisories",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {}
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ecosystem",
+              "value": "={{ $json.ecosystem === 'cargo' ? 'rust' : $json.ecosystem }}"
+            },
+            {
+              "name": "affects",
+              "value": "={{ $json.software }}"
+            }
+          ]
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
@@ -120,7 +134,8 @@
           "id": "FcJPNA2eZthHy7Wl",
           "name": "Header Auth account 3"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -156,7 +171,29 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n    a.id, \n    a.name AS asset_name, \n    a.software, \n    a.ecosystem, \n    a.version, \n    e.name AS env_name, \n    e.business_criticality AS env_criticality\nFROM assets a\nJOIN environments e ON a.environment_id = e.id\nWHERE a.software = '{{ $json.vulnerabilities.package.name }}'\n  AND a.ecosystem = '{{ $json.vulnerabilities.package.ecosystem }}'\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_entorno }}' = 'TODOS' \n      OR e.name = '{{ $(\"Edit Fields\").first().json.filtro_entorno }}'\n  )\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_activo }}' = 'TODOS' \n      OR a.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n  ); ",
+        "query": "INSERT INTO software_catalog (package_name, ecosystem)\nVALUES (\n  '{{ $json.vulnerabilities.package.name.replace(/'/g, \"''\") }}',\n  '{{ $json.vulnerabilities.package.ecosystem.replace(/'/g, \"''\") }}'\n)\nON CONFLICT (package_name, ecosystem)\nDO UPDATE SET last_seen_at = NOW();",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        224,
+        -600
+      ],
+      "id": "b2f0a6b1-6e2c-4b8a-9b1e-3f6a2c9d7e41",
+      "name": "Sync_Software_Catalog",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    sc.id, \n    COALESCE(a.name, sc.name) AS asset_name, \n    sc.software, \n    sc.ecosystem, \n    sc.version, \n    e.name AS env_name, \n    e.business_criticality AS env_criticality\nFROM software_components sc\nLEFT JOIN assets a ON sc.asset_id = a.id\nJOIN environments e ON a.environment_id = e.id\nWHERE LOWER(TRIM(sc.software)) = LOWER(TRIM('{{ $json.vulnerabilities.package.name }}'))\n  AND LOWER(TRIM(sc.ecosystem)) = LOWER(TRIM('{{ $json.vulnerabilities.package.ecosystem }}'))\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_entorno }}' = 'TODOS' \n      OR e.name = '{{ $(\"Edit Fields\").first().json.filtro_entorno }}'\n  )\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_activo }}' = 'TODOS' \n      OR a.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n      OR sc.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n  ); ",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -379,7 +416,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.vulnerabilities_audit \n(\n    detected_at, \n    asset_id,\n    cve_id, \n    ghsa_id, \n    cvss, \n    exploited, \n    priority, \n    decision, \n    assigned_to, \n    status\n) \nVALUES (\n    NOW(), \n    {{ $json.id || $json.asset_id || 0 }}, -- Intenta con 'id', si no 'asset_id', y si no pone 0 para que no sea undefined\n    '{{ $json.cve_id || \"N/A\" }}', \n    '{{ $json.ghsa_id }}', \n    '{{ $json.cvss }}', \n    {{ $json.is_cisa_kev ? 'TRUE' : 'FALSE' }}, \n    '{{ $json.priority }}', \n    '{{ $json.action_plan.replace(/'/g, \"''\") }}', \n    'SIN_ASIGNAR', \n    'DETECTADA'\n);",
+        "query": "INSERT INTO public.vulnerabilities_audit \n(\n    detected_at, \n    asset_id,\n    scan_id,\n    cve_id, \n    ghsa_id, \n    cvss, \n    exploited, \n    priority, \n    decision, \n    assigned_to, \n    status\n) \nVALUES (\n    NOW(), \n    {{ $json.id || $json.asset_id || 0 }}, -- Intenta con 'id', si no 'asset_id', y si no pone 0 para que no sea undefined\n    {{ $(\"Edit Fields\").first().json.scan_id ? $(\"Edit Fields\").first().json.scan_id : 'NULL' }},\n    '{{ $json.cve_id || \"N/A\" }}', \n    '{{ $json.ghsa_id }}', \n    '{{ $json.cvss }}', \n    {{ $json.is_cisa_kev ? 'TRUE' : 'FALSE' }}, \n    '{{ $json.priority }}', \n    '{{ $json.action_plan.replace(/'/g, \"''\") }}', \n    'SIN_ASIGNAR', \n    'DETECTADA'\n);",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -408,9 +445,9 @@
         },
         "table": {
           "__rl": true,
-          "value": "assets",
+          "value": "software_components",
           "mode": "list",
-          "cachedResultName": "assets"
+          "cachedResultName": "software_components"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -575,86 +612,34 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO public.scan_reports (\n    executed_at, \n    total_detected, audited, ignored, \n    criticals, highs, mediums, lows, \n    system_status, report_message, \n    environment_breakdown, \n    target_type, \n    target_name\n) \nVALUES (\n    NOW(), \n    {{ $json.ejecucion_stats.detalle.total_items }}, \n    {{ $json.ejecucion_stats.detalle.auditados }}, \n    {{ $json.ejecucion_stats.detalle.ignorados }}, \n    {{ $json.ejecucion_stats.detalle.criticos }}, \n    {{ $json.ejecucion_stats.detalle.altas }}, \n    {{ $json.ejecucion_stats.detalle.medias }}, \n    {{ $json.ejecucion_stats.detalle.bajas }}, \n    '{{ $json.ejecucion_stats.status_sistema }}', \n    '{{ $json.ejecucion_stats.resumen.replace(/'/g, \"''\") }}',\n    '{{ JSON.stringify($json.ejecucion_stats.entornos) }}'::jsonb,\n    '{{ $(\"Edit Fields\").first().json.filtro_activo !== \"TODOS\" ? \"ACTIVO\" : ($(\"Edit Fields\").first().json.filtro_entorno !== \"TODOS\" ? \"ENTORNO\" : \"GLOBAL\") }}',\n    '{{ $(\"Edit Fields\").first().json.filtro_activo !== \"TODOS\" ? $(\"Edit Fields\").first().json.filtro_activo : ($(\"Edit Fields\").first().json.filtro_entorno !== \"TODOS\" ? $(\"Edit Fields\").first().json.filtro_entorno : \"TODOS\") }}'\n);",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        1872,
-        96
-      ],
-      "id": "bb0e0541-e55a-416f-b030-515d56f82512",
-      "name": "Persist_Scan_Statistics",
-      "alwaysOutputData": false,
-      "credentials": {
-        "postgres": {
-          "id": "FMvuIfdZ5LTQUpbK",
-          "name": "Postgres account 2"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "url": "https://api.github.com/advisories",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendQuery": true,
-        "queryParameters": {
+        "method": "POST",
+        "url": "http://backend:8080/api/webhook/scan-report",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "severity",
-              "value": "critical"
+              "name": "Content-Type",
+              "value": "application/json"
             },
             {
-              "name": "per_page",
-              "value": "100"
-            },
-            {
-              "name": "type",
-              "value": "reviewed"
+              "name": "X-Internal-Token",
+              "value": "={{ $env.N8N_INTERNAL_TOKEN }}"
             }
           ]
         },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  scanId: $(\"Edit Fields\").first().json.scan_id ? Number($(\"Edit Fields\").first().json.scan_id) : null,\n  totalDetected: $json.ejecucion_stats.detalle.total_items,\n  audited: $json.ejecucion_stats.detalle.auditados,\n  ignored: $json.ejecucion_stats.detalle.ignorados,\n  criticals: $json.ejecucion_stats.detalle.criticos,\n  highs: $json.ejecucion_stats.detalle.altas,\n  mediums: $json.ejecucion_stats.detalle.medias,\n  lows: $json.ejecucion_stats.detalle.bajas,\n  systemStatus: $json.ejecucion_stats.status_sistema,\n  reportMessage: $json.ejecucion_stats.resumen,\n  environmentBreakdown: JSON.stringify($json.ejecucion_stats.entornos)\n} }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -400,
-        -784
+        1872,
+        96
       ],
-      "id": "e6dd0235-9b66-422d-9488-5ec68599adc7",
-      "name": "Fetch_Global_Advisories",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "FcJPNA2eZthHy7Wl",
-          "name": "Header Auth account 3"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO public.assets (\n    name, \n    software, \n    ecosystem, \n    version, \n    environment_id, \n    last_scan, \n    description\n) VALUES (\n    '{{ $json.name }}', \n    '{{ $json.software.toLowerCase().trim() }}', \n    '{{ $json.ecosystem.toLowerCase().trim() }}', \n    '{{ $json.version.trim() }}', \n    {{ $json.environment_id }}, -- 🚀 Ahora inyecta dinámicamente en el entorno 1, 2 o 3\n    NOW(), \n    '{{ $json.description }}' -- 🚀 Ahora guarda el texto con el detalle del CVE\n) \nON CONFLICT (software, version, environment_id) \nDO UPDATE SET \n    name = EXCLUDED.name,\n    last_scan = NOW(),\n    description = EXCLUDED.description;",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        112,
-        -784
-      ],
-      "id": "651e63f2-20c7-43ca-a1d0-4add63bc574c",
-      "name": "Upsert_Test_Asset",
-      "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "FMvuIfdZ5LTQUpbK",
-          "name": "Postgres account 2"
-        }
-      }
+      "id": "bb0e0541-e55a-416f-b030-515d56f82512",
+      "name": "Persist_Scan_Statistics"
     },
     {
       "parameters": {},
@@ -718,58 +703,6 @@
     },
     {
       "parameters": {
-        "jsCode": "// 1. Recolección y limpieza de datos\nconst pool = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const data = items[i].json;\n  \n  if (data.vulnerabilities && Array.isArray(data.vulnerabilities)) {\n    const list = data.vulnerabilities;\n    for (let j = 0; j < list.length; j++) {\n      const v = list[j];\n      if (v.package && v.package.name) {\n        pool.push({\n          name: v.package.name,\n          ecosystem: v.package.ecosystem || \"npm\",\n          summary: data.summary || \"Simulación de seguridad\",\n          severity: data.severity || \"CRITICAL\",\n          range: String(v.vulnerable_version_range || \"0.0.1\")\n        });\n      }\n    }\n  }\n}\n\nif (pool.length === 0) return [];\n\nconst selected = pool[Math.floor(Math.random() * pool.length)];\nconst envId = Math.floor(Math.random() * 3) + 1;\n\n// 2. Extracción de versión UNICA (Corregido para evitar duplicados)\nlet versionStr = \"0.0.1\";\nif (selected.range) {\n  // Buscamos la primera secuencia de números y puntos\n  const match = selected.range.match(/\\d+[\\d\\.]*/);\n  if (match) {\n    // Tomamos match que es el string exacto encontrado, sin grupos de captura\n    versionStr = String(match);\n    \n    // Limpieza extra: Si terminó en punto o coma por error, lo quitamos\n    if (versionStr.endsWith('.') || versionStr.endsWith(',')) {\n      versionStr = versionStr.slice(0, -1);\n    }\n  }\n}\n\n// 3. Retorno del objeto final\nreturn [\n  {\n    json: {\n      name: \"ASSET-\" + selected.name.toUpperCase(),\n      software: selected.name.toLowerCase().trim(),\n      ecosystem: selected.ecosystem.toLowerCase().trim(),\n      version: versionStr, // Ahora sí: \"16.0.5\"\n      criticality: selected.severity,\n      last_scan: new Date().toISOString(),\n      description: \"Inyectado en Entorno ID \" + envId + \": \" + selected.summary,\n      environment_id: envId\n    }\n  }\n];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -144,
-        -784
-      ],
-      "id": "9d9f2671-a212-4836-9e6f-e26f3f83d0ff",
-      "name": "Random_Asset_Selector",
-      "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "C0AB7JZ05MK",
-          "mode": "id"
-        },
-        "text": "=*📥 GEF SECURE | INYECTOR DE ACTIVOS*\n━━━━━━━━━━━━━━━━━━━━━━━━━\n*🛡️ Activo:* `{{ $json.name }}`\n*📦 Software:* `{{ $json.software }}`\n*🏷️ Ecosistema:* `{{ $json.ecosystem.toLowerCase() }}`\n*🔢 Versión:* `{{ $json.version }}`\n*⚠️ Severidad Reportada:* `{{ $json.criticality.toUpperCase() }}`\n━━━━━━━━━━━━━━━━━━━━━━━━━\n_✅ El activo ha sido persistido en la base de datos (Entorno: DESARROLLO). El sistema está listo para el ciclo de auditoría._",
-        "otherOptions": {}
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.4,
-      "position": [
-        112,
-        -944
-      ],
-      "id": "2f4d509f-d574-45b5-ae4d-cc14439c3e0b",
-      "name": "Notify_Dev_Slack1",
-      "webhookId": "48683959-9bd6-4e80-bf95-638013bc9f9c",
-      "credentials": {
-        "slackApi": {
-          "id": "Tp9lvfadC3DwQcig",
-          "name": "Slack account"
-        }
-      }
-    },
-    {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        -608,
-        -784
-      ],
-      "id": "6361899e-fcb5-40bc-999b-9f082a1bedd5",
-      "name": "Manual_Trigger"
-    },
-    {
-      "parameters": {
         "httpMethod": "POST",
         "path": "auditoria-automatizada",
         "options": {}
@@ -798,6 +731,12 @@
               "id": "99aca06d-d933-40d5-9c1b-ca400af00e92",
               "name": "filtro_activo",
               "value": "={{ $(\"Webhook\").isExecuted ? $node[\"Webhook\"].json.body.activo_name : \"TODOS\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d3f6c2a1-8b4e-4a2a-9c1d-7e5f9a0b3c6d",
+              "name": "scan_id",
+              "value": "={{ $(\"Webhook\").isExecuted ? $node[\"Webhook\"].json.body.scan_id : null }}",
               "type": "string"
             }
           ]
@@ -966,6 +905,222 @@
           "name": "Slack account"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT\n    LOWER(TRIM(sc.software)) AS software,\n    LOWER(TRIM(sc.ecosystem)) AS ecosystem\nFROM software_components sc\nJOIN assets a ON sc.asset_id = a.id\nLEFT JOIN environments e ON a.environment_id = e.id\nWHERE sc.deleted_at IS NULL\n  AND LOWER(TRIM(sc.ecosystem)) IN (SELECT LOWER(TRIM(name)) FROM public.ecosystems)\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_entorno }}' = 'TODOS'\n      OR e.name = '{{ $(\"Edit Fields\").first().json.filtro_entorno }}'\n  )\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_activo }}' = 'TODOS'\n      OR a.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n      OR sc.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n  );",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -616,
+        -164
+      ],
+      "id": "371576b1-91ec-458c-a513-125d3cb1d7c1",
+      "name": "Get_Installed_Packages",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inject-test-asset",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -608,
+        -560
+      ],
+      "id": "7bdebf46-8f02-480e-b136-1b037ab27aff",
+      "name": "Webhook_Inject_Asset",
+      "webhookId": "3e500c01-c310-4d3f-b6f3-43c95106d536"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { severity: 'low' } },\n  { json: { severity: 'medium' } },\n  { json: { severity: 'high' } },\n  { json: { severity: 'critical' } },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -398,
+        -560
+      ],
+      "id": "ca14e9ea-ea6c-4886-8e65-75adb898552b",
+      "name": "Prepare_Severities"
+    },
+    {
+      "parameters": {
+        "url": "https://api.github.com/advisories",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "severity",
+              "value": "={{ $json.severity }}"
+            },
+            {
+              "name": "per_page",
+              "value": "30"
+            },
+            {
+              "name": "type",
+              "value": "reviewed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -188,
+        -560
+      ],
+      "id": "ccf5aaf7-b495-4380-856a-33235a09ae06",
+      "name": "Fetch_Advisories_By_Severity",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "FcJPNA2eZthHy7Wl",
+          "name": "Header Auth account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "vulnerabilities",
+        "include": "selectedOtherFields",
+        "fieldsToInclude": "severity, ghsa_id, cve_id",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        22,
+        -560
+      ],
+      "id": "e2c3f81e-07e0-4a6a-a387-f5d9f6e6d7cf",
+      "name": "Extract_And_Tag"
+    },
+    {
+      "parameters": {
+        "jsCode": "const SUPPORTED_ECOSYSTEMS = ['npm','pip','maven','nuget','rust','go','composer','rubygems'];\nconst bySeverity = { low: [], medium: [], high: [], critical: [] };\nconst seen = new Set();\n\nfor (const item of items) {\n  const data = item.json;\n  const severity = String(data.severity || '').toLowerCase();\n  if (!bySeverity[severity]) continue;\n  const pkg = data.vulnerabilities && data.vulnerabilities.package;\n  if (!pkg || !pkg.name || !pkg.ecosystem) continue;\n  const ecosystem = pkg.ecosystem.toLowerCase();\n  if (!SUPPORTED_ECOSYSTEMS.includes(ecosystem)) continue;\n  const key = pkg.name.toLowerCase() + '|' + ecosystem;\n  if (seen.has(key)) continue;\n  seen.add(key);\n\n  let version = '0.0.1';\n  const range = String((data.vulnerabilities && data.vulnerabilities.vulnerable_version_range) || '');\n  const match = range.match(/\\d+[\\d.]*/);\n  if (match) version = match[0].replace(/\\.$/, '');\n\n  bySeverity[severity].push({\n    software: pkg.name.toLowerCase(),\n    ecosystem,\n    version,\n    severity,\n    ghsaId: data.ghsa_id || null,\n    cveId: data.cve_id || null,\n  });\n}\n\nreturn [{ json: { bySeverity } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        232,
+        -560
+      ],
+      "id": "f728e71f-68a9-4418-bd27-351c9e7bcc2a",
+      "name": "Build_Candidate_Pool"
+    },
+    {
+      "parameters": {
+        "jsCode": "const { bySeverity } = items[0].json;\nconst severities = ['low', 'medium', 'high', 'critical'];\n\nfunction randomFrom(arr) {\n  return arr[Math.floor(Math.random() * arr.length)];\n}\n\nconst picked = [];\nconst pickedKeys = new Set();\n\nfor (const sev of severities) {\n  const pool = bySeverity[sev] || [];\n  if (pool.length === 0) continue;\n  const candidate = randomFrom(pool);\n  const key = candidate.software + '|' + candidate.ecosystem;\n  if (pickedKeys.has(key)) continue;\n  picked.push(candidate);\n  pickedKeys.add(key);\n}\n\nconst remaining = severities\n  .flatMap(sev => bySeverity[sev] || [])\n  .filter(c => !pickedKeys.has(c.software + '|' + c.ecosystem));\n\nwhile (picked.length < 5 && remaining.length > 0) {\n  const idx = Math.floor(Math.random() * remaining.length);\n  const candidate = remaining.splice(idx, 1)[0];\n  const key = candidate.software + '|' + candidate.ecosystem;\n  if (pickedKeys.has(key)) continue;\n  picked.push(candidate);\n  pickedKeys.add(key);\n}\n\nif (picked.length < 5) {\n  throw new Error(`Solo se encontraron ${picked.length} paquetes candidatos distintos (se necesitan 5) -- reintentar.`);\n}\n\nconst hostName = 'Host Inyectado ' + new Date().toISOString().replace(/[:.]/g, '-');\nconst environmentId = Math.floor(Math.random() * 3) + 1;\n\nreturn [{\n  json: {\n    hostName,\n    environmentId,\n    components: picked.slice(0, 5),\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        442,
+        -560
+      ],
+      "id": "07e85428-6031-4a7a-85b5-dc38d3644705",
+      "name": "Pick_5_Balanced"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.assets (name, asset_type, environment_id, description)\nVALUES (\n  '{{ $json.hostName.replace(/'/g, \"''\") }}',\n  'SERVIDOR',\n  {{ $json.environmentId }},\n  'Host de prueba generado automaticamente (flujo inyector) -- software real con vulnerabilidades de severidad variada.'\n)\nRETURNING id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        652,
+        -560
+      ],
+      "id": "79ff1947-d8a6-48bc-baab-6bb6a96340bf",
+      "name": "Insert_Host",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const components = $('Pick_5_Balanced').first().json.components;\nconst hostId = items[0].json.id;\nreturn components.map(c => ({ json: { ...c, assetId: hostId } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        862,
+        -660
+      ],
+      "id": "59b3c2b7-a9df-4456-b552-24a3b780034c",
+      "name": "Split_Components"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.software_components\n(name, software, ecosystem, version, asset_id, last_scan, description)\nVALUES (\n  '{{ $json.software }} {{ $json.version }}',\n  '{{ $json.software.replace(/'/g, \"''\") }}',\n  '{{ $json.ecosystem }}',\n  '{{ $json.version.replace(/'/g, \"''\") }}',\n  {{ $json.assetId }},\n  NOW(),\n  'Inyectado automaticamente -- severidad {{ $json.severity }} -- {{ $json.cveId || $json.ghsaId || \"sin identificador\" }}'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1072,
+        -660
+      ],
+      "id": "d5d35f56-2ba9-4a88-b1a0-1801ae09e0a1",
+      "name": "Insert_Components",
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AB7JZ05MK",
+          "mode": "id"
+        },
+        "text": "=*GEF SECURE | INYECTOR DE ACTIVOS*\n-----------------------------------\n*Activo:* `{{ $json.hostName }}`\n*Software (5, severidad variada):*\n{{ $('Pick_5_Balanced').first().json.components.map(c => `- ${c.software} (${c.ecosystem}) v${c.version} -- ${c.severity.toUpperCase()}`).join('\\n') }}\n-----------------------------------\n_Listo para probar escaneos. Corre un escaneo ACTIVO o GLOBAL para verlo detectado._",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        862,
+        -440
+      ],
+      "id": "526ecd0c-41f4-4b2a-ad90-f92b6afd3393",
+      "name": "Notify_Injection_Complete",
+      "webhookId": "e7856814-6735-4330-82f0-fc908d5bffee",
+      "credentials": {
+        "slackApi": {
+          "id": "Tp9lvfadC3DwQcig",
+          "name": "Slack account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -983,13 +1138,7 @@
     },
     "Fetch_CISA_KEV": {
       "main": [
-        [
-          {
-            "node": "Fetch_GitHub_Advisories",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Fetch_GitHub_Advisories": {
@@ -1024,6 +1173,11 @@
           },
           {
             "node": "Enrich_Vulnerability_Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sync_Software_Catalog",
             "type": "main",
             "index": 0
           }
@@ -1167,22 +1321,6 @@
         ]
       ]
     },
-    "Fetch_Global_Advisories": {
-      "main": [
-        [
-          {
-            "node": "Random_Asset_Selector",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Upsert_Test_Asset": {
-      "main": [
-        []
-      ]
-    },
     "Error_Trigger": {
       "main": [
         [
@@ -1193,33 +1331,6 @@
           },
           {
             "node": "Notify_Dev_Slack",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Random_Asset_Selector": {
-      "main": [
-        [
-          {
-            "node": "Upsert_Test_Asset",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Notify_Dev_Slack1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Manual_Trigger": {
-      "main": [
-        [
-          {
-            "node": "Fetch_Global_Advisories",
             "type": "main",
             "index": 0
           }
@@ -1242,6 +1353,11 @@
         [
           {
             "node": "Fetch_CISA_KEV",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get_Installed_Packages",
             "type": "main",
             "index": 0
           }
@@ -1288,18 +1404,110 @@
           }
         ]
       ]
+    },
+    "Get_Installed_Packages": {
+      "main": [
+        [
+          {
+            "node": "Fetch_GitHub_Advisories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook_Inject_Asset": {
+      "main": [
+        [
+          {
+            "node": "Prepare_Severities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare_Severities": {
+      "main": [
+        [
+          {
+            "node": "Fetch_Advisories_By_Severity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch_Advisories_By_Severity": {
+      "main": [
+        [
+          {
+            "node": "Extract_And_Tag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract_And_Tag": {
+      "main": [
+        [
+          {
+            "node": "Build_Candidate_Pool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build_Candidate_Pool": {
+      "main": [
+        [
+          {
+            "node": "Pick_5_Balanced",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick_5_Balanced": {
+      "main": [
+        [
+          {
+            "node": "Insert_Host",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert_Host": {
+      "main": [
+        [
+          {
+            "node": "Split_Components",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify_Injection_Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split_Components": {
+      "main": [
+        [
+          {
+            "node": "Insert_Components",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
-  },
-  "active": false,
-  "settings": {
-    "executionOrder": "v1",
-    "availableInMCP": false
-  },
-  "versionId": "7b36b2f9-d6df-45e1-a3ae-49f0aa6f1d22",
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "29f431f61c7255a6ccc625ca2eb147f7114d803a2673eef917b35fd09e4bc3b0"
-  },
-  "id": "Ix00EX3vq6sfnRo7zGepF",
-  "tags": []
+  }
 }

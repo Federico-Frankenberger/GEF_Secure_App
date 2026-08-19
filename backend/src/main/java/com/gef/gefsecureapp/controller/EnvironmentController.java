@@ -2,12 +2,15 @@ package com.gef.gefsecureapp.controller;
 
 import com.gef.gefsecureapp.exception.ResourceNotFoundException;
 import com.gef.gefsecureapp.model.Environment;
+import com.gef.gefsecureapp.model.ScanReport;
 import com.gef.gefsecureapp.repository.EnvironmentRepository;
 import com.gef.gefsecureapp.service.N8nWebhookService;
+import com.gef.gefsecureapp.service.ScanService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -21,6 +24,7 @@ public class EnvironmentController {
 
     private final EnvironmentRepository environmentRepository;
     private final N8nWebhookService webhookService;
+    private final ScanService scanService;
 
     @GetMapping
     @Operation(summary = "Listar todos los entornos")
@@ -37,6 +41,7 @@ public class EnvironmentController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Environment> create(@RequestBody Environment env) {
         env.setId(null);
         env.setCreatedAt(LocalDateTime.now());
@@ -44,6 +49,7 @@ public class EnvironmentController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Environment> update(@PathVariable Long id, @RequestBody Environment dto) {
         Environment existing = environmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", id));
@@ -54,6 +60,7 @@ public class EnvironmentController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         if (!environmentRepository.existsById(id))
             throw new ResourceNotFoundException("Environment", id);
@@ -62,11 +69,13 @@ public class EnvironmentController {
     }
 
     @PostMapping("/{id}/scan")
+    @PreAuthorize("hasAnyRole('ADMIN','SECURITY_ANALYST')")
     @Operation(summary = "Disparar escaneo de todos los activos de un entorno vía n8n")
     public ResponseEntity<Void> triggerScan(@PathVariable Long id) {
         Environment env = environmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", id));
-        webhookService.triggerScanForEnvironment(env.getName());
+        ScanReport scan = scanService.start("ENTORNO", env.getName(), null, id, null);
+        webhookService.triggerScanForEnvironment(env.getName(), scan.getId());
         return ResponseEntity.accepted().build();
     }
 }

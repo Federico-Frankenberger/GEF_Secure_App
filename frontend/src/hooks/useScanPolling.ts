@@ -8,6 +8,7 @@ export type ScanPollState = 'idle' | 'running' | 'done' | 'timeout' | 'error'
 // puntual -- se les da mas tiempo antes de declarar timeout.
 const TIMEOUT_MS: Record<ScanTargetType, number> = {
   ACTIVO: 30_000,
+  HOST: 45_000,
   ENTORNO: 60_000,
   GLOBAL: 90_000,
 }
@@ -20,6 +21,7 @@ export function useScanPolling() {
   const stop = useCallback(() => {
     if (timerRef.current) window.clearTimeout(timerRef.current)
     timerRef.current = null
+    setState('idle')
   }, [])
 
   const start = useCallback((

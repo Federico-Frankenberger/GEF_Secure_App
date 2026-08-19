@@ -46,7 +46,22 @@ disponibles:
 | Backend (API + Swagger) | http://localhost:8081/swagger-ui.html | |
 | n8n | http://localhost:5678 | Owner y workflow ya creados y activos |
 | pgAdmin | http://localhost:8080 | Login con las credenciales de `.env` |
-| PostgreSQL | localhost:5432 | Bases `security` y `n8n` |
+| PostgreSQL | localhost:5433 | Bases `security` y `n8n` (5433 en el host para no chocar con un Postgres nativo en 5432; el contenedor sigue escuchando en 5432 puertas adentro de la red de Docker) |
+
+Desde la Fase 3 el frontend pide login. Usuarios del seed, **solo para entorno local**
+(`init/05-auth.sql`):
+
+| Usuario | Password | Rol |
+|---|---|---|
+| `fede.frankenberger` | `GefSecure2026!` | ADMIN |
+| `auditor.demo` | `GefSecure2026!` | AUDITOR |
+
+**Límite conocido de esta fase**: el JWT es autocontenido y sin estado — no hay
+lista de revocación ni chequeo contra la base en cada request. Un token emitido
+sigue siendo válido hasta que vence (`jwt.expiration-minutes`, 8hs por defecto)
+**aunque el usuario se borre o cambie de rol mientras tanto**. Es una decisión
+consciente de alcance (evita mantener estado de sesión del lado del servidor),
+no un descuido — documentado para que quede explícito en la defensa de tesis.
 
 El primer arranque tarda un poco más que los siguientes: n8n necesita crear su usuario,
 importar el workflow y activarlo. Seguir el progreso con:

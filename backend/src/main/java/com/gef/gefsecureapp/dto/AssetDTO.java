@@ -10,18 +10,11 @@ public class AssetDTO {
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Request {
         @NotBlank(message = "El nombre es requerido")
-        @Size(max = 255)
+        @Size(max = 150)
         private String name;
 
-        @NotBlank(message = "El software es requerido")
-        @Size(max = 255)
-        private String software;
-
-        @Size(max = 50)
-        private String ecosystem;
-
-        @Size(max = 50)
-        private String version;
+        @Size(max = 30)
+        private String assetType;
 
         private Long environmentId;
 
@@ -32,13 +25,21 @@ public class AssetDTO {
     public static class Response {
         private Long id;
         private String name;
-        private String software;
-        private String ecosystem;
-        private String version;
+        private String assetType;
         private Long environmentId;
         private String environmentName;
-        private String businessCriticality;
-        private LocalDateTime lastScan;
         private String description;
+        private LocalDateTime createdAt;
+    }
+
+    /** Activo eliminado logicamente, para el panel de restauracion. */
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class DeletedResponse {
+        private Long id;
+        private String name;
+        private String assetType;
+        private String environmentName;
+        private LocalDateTime deletedAt;
+        private long componentsCount;
     }
 }

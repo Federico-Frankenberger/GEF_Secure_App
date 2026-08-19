@@ -28,9 +28,15 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
 	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 	runtimeOnly 'org.postgresql:postgresql'
+
+	// JWT (Fase 3 - autenticacion)
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'
@@ -50,6 +56,20 @@ tasks.withType(JavaCompile).configureEach {
 		'-Amapstruct.defaultComponentModel=spring',
 		'-Amapstruct.unmappedTargetPolicy=IGNORE'
 	]
+}
+
+// El JDBC driver de Postgres le pasa al servidor el timezone por defecto de la
+// JVM en el handshake de conexión. En Windows, algunos locales reportan el
+// alias legado "America/Buenos_Aires" en vez del nombre IANA canónico
+// "America/Argentina/Buenos_Aires", que es el único que trae el tzdata de la
+// imagen postgres:15 -> la conexión fallaba con "invalid value for parameter
+// TimeZone". Se fija explícitamente para las tareas que corren contra la base
+// real (test, bootRun) sin tocar la configuración de timezone del sistema.
+tasks.withType(Test).configureEach {
+	systemProperty 'user.timezone', 'UTC'
+}
+tasks.withType(JavaExec).configureEach {
+	systemProperty 'user.timezone', 'UTC'
 }
 
 tasks.named('test') {

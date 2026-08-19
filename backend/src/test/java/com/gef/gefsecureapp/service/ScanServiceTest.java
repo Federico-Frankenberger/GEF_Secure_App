@@ -1,0 +1,161 @@
+package com.gef.gefsecureapp.service;
+
+import com.gef.gefsecureapp.exception.ResourceNotFoundException;
+import com.gef.gefsecureapp.model.Asset;
+import com.gef.gefsecureapp.model.Environment;
+import com.gef.gefsecureapp.model.ScanReport;
+import com.gef.gefsecureapp.model.SoftwareComponent;
+import com.gef.gefsecureapp.model.User;
+import com.gef.gefsecureapp.repository.AssetRepository;
+import com.gef.gefsecureapp.repository.EnvironmentRepository;
+import com.gef.gefsecureapp.repository.ScanReportRepository;
+import com.gef.gefsecureapp.repository.SoftwareComponentRepository;
+import com.gef.gefsecureapp.repository.UserRepository;
+import com.gef.gefsecureapp.security.TestAuth;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class ScanServiceTest {
+
+    @Mock private ScanReportRepository scanReportRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private SoftwareComponentRepository softwareComponentRepository;
+    @Mock private EnvironmentRepository environmentRepository;
+    @Mock private AssetRepository assetRepository;
+    @Mock private VulnerabilityAuditService vulnerabilityAuditService;
+
+    @InjectMocks private ScanService scanService;
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    @DisplayName("start() crea el Scan en RUNNING, con quien lo disparo, y genera un public_code SCN-<anio>-<id>")
+    void start_should_createRunningScan_withTriggeredByAndPublicCode() {
+        TestAuth.loginAs(7L, "fede.frankenberger", "ADMIN");
+        User user = User.builder().id(7L).username("fede.frankenberger").build();
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+        when(scanReportRepository.save(any(ScanReport.class))).thenAnswer(inv -> {
+            ScanReport s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(42L);
+            return s;
+        });
+
+        ScanReport result = scanService.start("GLOBAL", "TODOS", null, null, null);
+
+        assertThat(result.getStatus()).isEqualTo("RUNNING");
+        assertThat(result.getTriggeredBy()).isEqualTo(user);
+        assertThat(result.getTargetType()).isEqualTo("GLOBAL");
+        assertThat(result.getTargetName()).isEqualTo("TODOS");
+        assertThat(result.getStartedAt()).isNotNull();
+        assertThat(result.getPublicCode()).matches("SCN-\\d{4}-000042");
+    }
+
+    @Test
+    @DisplayName("start() para un escaneo de componente resuelve y setea el SoftwareComponent")
+    void start_should_resolveSoftwareComponent_when_componentIdProvided() {
+        TestAuth.loginAs(7L, "fede.frankenberger", "ADMIN");
+        when(userRepository.findById(7L)).thenReturn(Optional.of(User.builder().id(7L).build()));
+        SoftwareComponent component = SoftwareComponent.builder().id(5L).name("axios").build();
+        when(softwareComponentRepository.findById(5L)).thenReturn(Optional.of(component));
+        when(scanReportRepository.save(any(ScanReport.class))).thenAnswer(inv -> {
+            ScanReport s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(1L);
+            return s;
+        });
+
+        ScanReport result = scanService.start("ACTIVO", "axios", 5L, null, null);
+
+        assertThat(result.getSoftwareComponent()).isEqualTo(component);
+        assertThat(result.getEnvironment()).isNull();
+        verify(environmentRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("start() para un escaneo de entorno resuelve y setea el Environment")
+    void start_should_resolveEnvironment_when_environmentIdProvided() {
+        TestAuth.loginAs(7L, "fede.frankenberger", "ADMIN");
+        when(userRepository.findById(7L)).thenReturn(Optional.of(User.builder().id(7L).build()));
+        Environment env = Environment.builder().id(2L).name("Desarrollo").build();
+        when(environmentRepository.findById(2L)).thenReturn(Optional.of(env));
+        when(scanReportRepository.save(any(ScanReport.class))).thenAnswer(inv -> {
+            ScanReport s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(1L);
+            return s;
+        });
+
+        ScanReport result = scanService.start("ENTORNO", "Desarrollo", null, 2L, null);
+
+        assertThat(result.getEnvironment()).isEqualTo(env);
+        assertThat(result.getSoftwareComponent()).isNull();
+        verify(softwareComponentRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("start() para un escaneo de activo (host) resuelve y setea el Asset")
+    void start_should_resolveAsset_when_assetIdProvided() {
+        TestAuth.loginAs(7L, "fede.frankenberger", "ADMIN");
+        when(userRepository.findById(7L)).thenReturn(Optional.of(User.builder().id(7L).build()));
+        Asset asset = Asset.builder().id(3L).name("Host Inyectado").build();
+        when(assetRepository.findById(3L)).thenReturn(Optional.of(asset));
+        when(scanReportRepository.save(any(ScanReport.class))).thenAnswer(inv -> {
+            ScanReport s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(1L);
+            return s;
+        });
+
+        ScanReport result = scanService.start("HOST", "Host Inyectado", null, null, 3L);
+
+        assertThat(result.getAsset()).isEqualTo(asset);
+        assertThat(result.getSoftwareComponent()).isNull();
+        assertThat(result.getEnvironment()).isNull();
+        verify(softwareComponentRepository, never()).findById(any());
+        verify(environmentRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("complete() actualiza el Scan a COMPLETED con las metricas reportadas por n8n")
+    void complete_should_updateScan_toCompletedWithMetrics() {
+        ScanReport running = ScanReport.builder().id(9L).status("RUNNING").startedAt(LocalDateTime.now()).build();
+        when(scanReportRepository.findById(9L)).thenReturn(Optional.of(running));
+        when(scanReportRepository.save(any(ScanReport.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ScanReport result = scanService.complete(9L, new ScanService.ScanCompletionPayload(
+                10, 8, 2, 1, 2, 3, 2, "✅ ESTABLE", "resumen", "{}"));
+
+        assertThat(result.getStatus()).isEqualTo("COMPLETED");
+        assertThat(result.getExecutedAt()).isNotNull();
+        assertThat(result.getTotalDetected()).isEqualTo(10);
+        assertThat(result.getCriticals()).isEqualTo(1);
+        assertThat(result.getSystemStatus()).isEqualTo("✅ ESTABLE");
+        verify(vulnerabilityAuditService).applyLifecycle(result);
+    }
+
+    @Test
+    @DisplayName("complete() de un scan inexistente da 404")
+    void complete_should_throwNotFound_when_scanDoesNotExist() {
+        when(scanReportRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> scanService.complete(999L,
+                new ScanService.ScanCompletionPayload(0, 0, 0, 0, 0, 0, 0, "", "", "")))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+}
