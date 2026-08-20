@@ -15,6 +15,9 @@ import type {
   ScanComparison,
   SoftwareCatalogEntry,
   LoginResponse,
+  InventorySummary,
+  PageResponse,
+  GhsaAdvisory,
 } from '../types'
 
 export const TOKEN_KEY = 'gef_token'
@@ -37,13 +40,25 @@ http.interceptors.request.use((config) => {
 // vencida) limpia la sesión y manda a /login.
 http.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
     const isLoginRequest = err.config?.url?.includes('/auth/login')
     if (err.response?.status === 401 && !isLoginRequest) {
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem('gef_user')
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login'
+      }
+    }
+    // Los endpoints de /reports piden responseType 'blob' -- ante un error, el
+    // body de la respuesta llega como Blob (no JSON parseado), asi que hay que
+    // leerlo a mano para no perder el mensaje real del backend (ej: "no se
+    // encontraron activos afectados por...").
+    if (err.response?.data instanceof Blob && err.response.data.type.includes('json')) {
+      try {
+        const parsed = JSON.parse(await err.response.data.text())
+        return Promise.reject(new Error(parsed.message || parsed.error || 'Error de red'))
+      } catch {
+        // sigue al mensaje genérico de abajo
       }
     }
     const msg =
@@ -96,6 +111,25 @@ export const assetApi = {
   restore:    (id: number)                     => http.post<void>(`/assets/${id}/restore`),
   injectTestData: ()                           => http.post<void>('/assets/inject-test-data'),
   triggerScan: (id: number)                    => http.post<void>(`/assets/${id}/scan`),
+}
+
+// ── Inventario (SBOM CycloneDX, ej. Syft) ─────────────────────────────────────
+// Content-Type: undefined fuerza a axios a recalcularlo el mismo para FormData
+// (multipart/form-data; boundary=...) -- si no, pisa el default 'application/json'
+// de la instancia y Spring rechaza el request con "not a multipart request".
+const multipartHeaders = { headers: { 'Content-Type': undefined } }
+
+export const inventoryApi = {
+  preview: (assetId: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<InventorySummary>(`/assets/${assetId}/inventory/preview`, form, multipartHeaders)
+  },
+  import: (assetId: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<InventorySummary>(`/assets/${assetId}/inventory/import`, form, multipartHeaders)
+  },
 }
 
 // ── Software Components (paquete instalado, antes "Asset") ────────────────────
@@ -155,8 +189,8 @@ export const scanApi = {
       params: { targetType, targetName },
       validateStatus: s => s === 200 || s === 204,
     }),
-  history: (params: { targetType?: string; targetName?: string; from?: string; to?: string }) =>
-    http.get<ScanReport[]>('/scan-reports', { params }),
+  history: (params: { targetType?: string; targetName?: string; publicCode?: string; from?: string; to?: string; page?: number; size?: number }) =>
+    http.get<PageResponse<ScanReport>>('/scan-reports', { params }),
   reportVulnerabilities: (id: number) =>
     http.get<VulnerabilityAudit[]>(`/scan-reports/${id}/vulnerabilities`),
   compare: (idA: number, idB: number) =>
@@ -165,6 +199,19 @@ export const scanApi = {
 
 // ── System Errors ─────────────────────────────────────────────────────────────
 export const systemErrorApi = {
-  getAll:  () => http.get<SystemError[]>('/system-errors'),
+  getAll:  (page = 0, size = 20) => http.get<PageResponse<SystemError>>('/system-errors', { params: { page, size } }),
   delete:  (id: number) => http.delete(`/system-errors/${id}`),
+}
+
+// ── GHSA Advisories (descripción real de una vulnerabilidad, cacheada) ───────
+export const ghsaAdvisoryApi = {
+  get: (ghsaId: string) => http.get<GhsaAdvisory>(`/ghsa-advisories/${encodeURIComponent(ghsaId)}`),
+}
+
+// ── Informes (exportación de PDFs) ────────────────────────────────────────────
+export const reportApi = {
+  scan:       (scanId: number)                    => http.get<Blob>(`/reports/scan/${scanId}`, { responseType: 'blob' }),
+  comparison: (scanAId: number, scanBId: number)   => http.get<Blob>('/reports/comparison', { params: { scanAId, scanBId }, responseType: 'blob' }),
+  executive:  ()                                   => http.get<Blob>('/reports/executive', { responseType: 'blob' }),
+  cve:        (identifier: string)                 => http.get<Blob>(`/reports/cve/${encodeURIComponent(identifier)}`, { responseType: 'blob' }),
 }

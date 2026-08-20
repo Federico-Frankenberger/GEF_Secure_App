@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Scans     from './pages/Scans'
 import Assets    from './pages/Assets'
 import Kanban    from './pages/Kanban'
+import Informes  from './pages/Informes'
 import Settings  from './pages/Settings'
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="inventory"   element={<Navigate to="/assets" replace />} />
           <Route path="assets"      element={<Assets />} />
           <Route path="kanban"      element={<Kanban />} />
+          <Route path="informes"    element={<Informes />} />
           <Route path="settings"    element={<Settings />} />
         </Route>
       </Route>

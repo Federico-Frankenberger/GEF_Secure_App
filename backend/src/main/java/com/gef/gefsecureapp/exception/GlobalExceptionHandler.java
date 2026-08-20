@@ -43,6 +43,20 @@ public class GlobalExceptionHandler {
                 .body(new ErrorBody(401, ex.getMessage()));
     }
 
+    @ExceptionHandler(GhsaAdvisoryUnavailableException.class)
+    public ResponseEntity<ErrorBody> handleGhsaAdvisoryUnavailable(GhsaAdvisoryUnavailableException ex) {
+        log.warn("Advisory de GitHub no disponible: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new ErrorBody(502, ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidInventoryFileException.class)
+    public ResponseEntity<ErrorBody> handleInvalidInventoryFile(InvalidInventoryFileException ex) {
+        log.warn("Archivo de inventario invalido: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorBody(400, ex.getMessage()));
+    }
+
     @ExceptionHandler(N8nUnavailableException.class)
     public ResponseEntity<ErrorBody> handleN8nUnavailable(N8nUnavailableException ex) {
         log.error("n8n no respondió: {}", ex.getMessage());

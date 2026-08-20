@@ -416,7 +416,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.vulnerabilities_audit \n(\n    detected_at, \n    asset_id,\n    scan_id,\n    cve_id, \n    ghsa_id, \n    cvss, \n    exploited, \n    priority, \n    decision, \n    assigned_to, \n    status\n) \nVALUES (\n    NOW(), \n    {{ $json.id || $json.asset_id || 0 }}, -- Intenta con 'id', si no 'asset_id', y si no pone 0 para que no sea undefined\n    {{ $(\"Edit Fields\").first().json.scan_id ? $(\"Edit Fields\").first().json.scan_id : 'NULL' }},\n    '{{ $json.cve_id || \"N/A\" }}', \n    '{{ $json.ghsa_id }}', \n    '{{ $json.cvss }}', \n    {{ $json.is_cisa_kev ? 'TRUE' : 'FALSE' }}, \n    '{{ $json.priority }}', \n    '{{ $json.action_plan.replace(/'/g, \"''\") }}', \n    'SIN_ASIGNAR', \n    'DETECTADA'\n);",
+        "query": "INSERT INTO public.vulnerabilities_audit \n(\n    detected_at, \n    asset_id,\n    scan_id,\n    cve_id, \n    ghsa_id, \n    cvss, \n    exploited, \n    priority, \n    assigned_to, \n    status,\n    patched_version,\n    is_zero_day\n) \nVALUES (\n    NOW(), \n    {{ $json.id || $json.asset_id || 0 }}, -- Intenta con 'id', si no 'asset_id', y si no pone 0 para que no sea undefined\n    {{ $(\"Edit Fields\").first().json.scan_id ? $(\"Edit Fields\").first().json.scan_id : 'NULL' }},\n    '{{ $json.cve_id || \"N/A\" }}', \n    '{{ $json.ghsa_id }}', \n    '{{ $json.cvss }}', \n    {{ $json.is_cisa_kev ? 'TRUE' : 'FALSE' }}, \n    '{{ $json.priority }}', \n    'SIN_ASIGNAR', \n    'DETECTADA',\n    {{ $json.patch_version && $json.patch_version !== 'N/A' ? `'${$json.patch_version.replace(/'/g, \"''\")}'` : 'NULL' }}, -- NULL en vez de 'N/A' -- el frontend distingue \"sin parche\" via is_zero_day, no parseando texto\n    {{ $json.is_zero_day ? 'TRUE' : 'FALSE' }}\n);",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -642,6 +642,43 @@
       "name": "Persist_Scan_Statistics"
     },
     {
+      "parameters": {
+        "jsCode": "// Red de seguridad: garantiza que Persist_Scan_Statistics siempre reciba\n// datos, incluso cuando el paquete escaneado no tiene ninguna advisory en\n// GitHub (caso legitimo y frecuente -- la mayoria del software no tiene\n// CVEs activos). Sin esto, Fetch_GitHub_Advisories -> Extract_Advisory_Items\n// se queda con 0 items y toda la cadena de enriquecimiento nunca llega a\n// Compute_Audit_Metrics, dejando el ScanReport trabado en RUNNING para\n// siempre. Se alimenta directo de Edit Fields (1 item garantizado, corre en\n// paralelo a la cadena real) para no tocar la logica de matching -- se\n// marca isFallback para que Pick_Real_Or_Fallback_Metrics lo descarte si la\n// cadena real SI encontro datos.\nreturn [{\n    json: {\n        isFallback: true,\n        ejecucion_stats: {\n            resumen: 'Análisis finalizado: 0 vulnerabilidades encontradas para el alcance solicitado.',\n            detalle: {\n                total_items: 0,\n                auditados: 0,\n                ignorados: 0,\n                criticos: 0,\n                altas: 0,\n                medias: 0,\n                bajas: 0\n            },\n            entornos: {},\n            status_sistema: '✅ ESTABLE',\n            fecha: new Date().toLocaleString('es-AR')\n        }\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        288
+      ],
+      "id": "d4a2e6e1-9b7a-4c8f-8e5b-2a6f1c9d3b7e",
+      "name": "Compute_Empty_Fallback_Metrics"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2016,
+        -80
+      ],
+      "id": "f7c3d8b2-1e4a-4f9c-a3d6-7b8e2f0c5a91",
+      "name": "Choose_Final_Metrics"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Choose_Final_Metrics junta (append) el resultado real (Compute_Audit_Metrics,\n// 0 o 1 item) con el fallback garantizado (Compute_Empty_Fallback_Metrics,\n// siempre 1 item) -- entre 1 y 2 items llegan aca. Nos quedamos con el real\n// si esta, si no con el fallback, y devolvemos exactamente 1 item para que\n// Persist_Scan_Statistics haga un solo POST.\nconst real = items.find(i => !i.json.isFallback);\nreturn [real || items[0]];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        -80
+      ],
+      "id": "a8e5f3c7-4d2b-4a1e-9c6f-8b3d5e7a2c94",
+      "name": "Pick_Real_Or_Fallback_Metrics"
+    },
+    {
       "parameters": {},
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
@@ -860,7 +897,7 @@
           "value": "C0AB7JZ05MK",
           "mode": "id"
         },
-        "text": "=*🛡️ GEF SECURE | REPORTE DE ESTADO POR ENTORNO*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 SEGMENTO ANALIZADO*\n> *Entorno:* `{{ $(\"Edit Fields\").first().json.filtro_entorno?.toUpperCase() || 'N/A' }}`\n> *ID de Ejecución:* `{{ $execution.id }}`\n> *Fecha:* `{{ $(\"Compute_Audit_Metrics\").first().json.ejecucion_stats.fecha }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📊 MÉTRICAS DEL SEGMENTO*\n> • Hallazgos totales: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Críticos: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • Altos: `{{ $json.ejecucion_stats.detalle.altas }}`\n> • Medios/Bajos: `{{ $json.ejecucion_stats.detalle.medias + $json.ejecucion_stats.detalle.bajas }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ATENCIÓN:* Se requiere revisión de la política de seguridad en este entorno.\" : \"✅ *VALIDADO:* El segmento opera bajo parámetros de riesgo aceptables.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/|Ver detalle del entorno en GEF Secure>",
+        "text": "=*🛡️ GEF SECURE | REPORTE DE ESTADO POR ENTORNO*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 SEGMENTO ANALIZADO*\n> *Entorno:* `{{ $(\"Edit Fields\").first().json.filtro_entorno?.toUpperCase() || 'N/A' }}`\n> *ID de Ejecución:* `{{ $execution.id }}`\n> *Fecha:* `{{ $json.ejecucion_stats.fecha }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📊 MÉTRICAS DEL SEGMENTO*\n> • Hallazgos totales: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Críticos: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • Altos: `{{ $json.ejecucion_stats.detalle.altas }}`\n> • Medios/Bajos: `{{ $json.ejecucion_stats.detalle.medias + $json.ejecucion_stats.detalle.bajas }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ATENCIÓN:* Se requiere revisión de la política de seguridad en este entorno.\" : \"✅ *VALIDADO:* El segmento opera bajo parámetros de riesgo aceptables.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/|Ver detalle del entorno en GEF Secure>",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
@@ -1121,6 +1158,19 @@
           "name": "Slack account"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Secuencial en vez de Merge/Wait: este nodo corre recien despues de que\n// Persist_Audit_Findings termino el INSERT (dependencia real de datos, no\n// una espera por tiempo). Persist_Audit_Findings devuelve el resultado de\n// la query, no los hallazgos -- Consolidate_Audit_Results/Compute_Audit_Metrics\n// necesitan los items originales de Risk_Assessment_Engine para las metricas.\nreturn $('Risk_Assessment_Engine').all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1550,
+        96
+      ],
+      "id": "8d44fe25-d38e-4efb-a026-c75204a6a933",
+      "name": "Reattach_Audit_Findings"
     }
   ],
   "pinData": {},
@@ -1267,11 +1317,6 @@
       "main": [
         [
           {
-            "node": "Consolidate_Audit_Results",
-            "type": "main",
-            "index": 1
-          },
-          {
             "node": "Persist_Audit_Findings",
             "type": "main",
             "index": 0
@@ -1286,7 +1331,13 @@
     },
     "Persist_Audit_Findings": {
       "main": [
-        []
+        [
+          {
+            "node": "Reattach_Audit_Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Update_Asset_Audit_Timestamp": {
@@ -1306,6 +1357,39 @@
       ]
     },
     "Compute_Audit_Metrics": {
+      "main": [
+        [
+          {
+            "node": "Choose_Final_Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute_Empty_Fallback_Metrics": {
+      "main": [
+        [
+          {
+            "node": "Choose_Final_Metrics",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Choose_Final_Metrics": {
+      "main": [
+        [
+          {
+            "node": "Pick_Real_Or_Fallback_Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick_Real_Or_Fallback_Metrics": {
       "main": [
         [
           {
@@ -1358,6 +1442,11 @@
           },
           {
             "node": "Get_Installed_Packages",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Compute_Empty_Fallback_Metrics",
             "type": "main",
             "index": 0
           }
@@ -1505,6 +1594,17 @@
             "node": "Insert_Components",
             "type": "main",
             "index": 0
+          }
+        ]
+      ]
+    },
+    "Reattach_Audit_Findings": {
+      "main": [
+        [
+          {
+            "node": "Consolidate_Audit_Results",
+            "type": "main",
+            "index": 1
           }
         ]
       ]

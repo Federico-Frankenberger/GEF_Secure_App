@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, KanbanSquare,
-  Settings, ShieldCheck, Activity, ScanLine, Server, LogOut,
+  Settings, ShieldCheck, Activity, ScanLine, Server, LogOut, FileText,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -10,6 +10,7 @@ const links = [
   { to: '/scans',      icon: ScanLine,        label: 'Escaneos'   },
   { to: '/assets',     icon: Server,           label: 'Activos'    },
   { to: '/kanban',     icon: KanbanSquare,      label: 'Auditoría'  },
+  { to: '/informes',   icon: FileText,          label: 'Informes'   },
   { to: '/settings',   icon: Settings,          label: 'Config', adminOnly: true },
 ]
 

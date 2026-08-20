@@ -3,7 +3,6 @@ package com.gef.gefsecureapp.service;
 import com.gef.gefsecureapp.dto.DashboardStatsDTO;
 import com.gef.gefsecureapp.repository.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,8 +40,7 @@ public class DashboardService {
         Double mttrDays = vulnRepository.findAverageMttrDays();
 
         String systemStatus = scanReportRepository
-                .findAllByOrderByExecutedAtDesc(PageRequest.of(0, 1))
-                .stream().findFirst()
+                .findFirstByExecutedAtNotNullOrderByExecutedAtDesc()
                 .map(r -> r.getSystemStatus())
                 .orElse("DESCONOCIDO");
 

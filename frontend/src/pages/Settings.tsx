@@ -21,8 +21,11 @@ type Tab = 'users' | 'assignments' | 'errors' | 'environments' | 'assetTypes' | 
 
 export default function Settings() {
   const { user: currentUser } = useAuth()
+  const ERRORS_PAGE_SIZE = 20
   const [users,   setUsers]   = useState<User[]>([])
   const [errors,  setErrors]  = useState<SystemError[]>([])
+  const [errorsTotal, setErrorsTotal] = useState(0)
+  const [errorPage,   setErrorPage]   = useState(0)
   const [loadU,   setLoadU]   = useState(true)
   const [loadE,   setLoadE]   = useState(true)
   const [tab,     setTab]     = useState<Tab>('users')
@@ -95,10 +98,10 @@ export default function Settings() {
       .finally(() => setLoadU(false))
   }, [])
 
-  const loadErrors = useCallback(() => {
+  const loadErrors = useCallback((page = 0) => {
     setLoadE(true)
-    systemErrorApi.getAll()
-      .then(r => setErrors(r.data))
+    systemErrorApi.getAll(page, ERRORS_PAGE_SIZE)
+      .then(r => { setErrors(r.data.content); setErrorsTotal(r.data.totalElements); setErrorPage(page) })
       .catch(() => toast.error('Error al cargar errores'))
       .finally(() => setLoadE(false))
   }, [])
@@ -201,6 +204,7 @@ export default function Settings() {
     try {
       await systemErrorApi.delete(id)
       setErrors(prev => prev.filter(e => e.id !== id))
+      setErrorsTotal(prev => prev - 1)
       toast.success('Error eliminado del log')
     } catch { toast.error('Error al eliminar') }
   }
@@ -442,9 +446,9 @@ export default function Settings() {
           >
             {t.icon && <t.icon size={13} />}
             {t.label}
-            {t.key === 'errors' && errors.length > 0 && (
+            {t.key === 'errors' && errorsTotal > 0 && (
               <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
-                {errors.length > 9 ? '9+' : errors.length}
+                {errorsTotal > 9 ? '9+' : errorsTotal}
               </span>
             )}
           </button>
@@ -577,13 +581,22 @@ export default function Settings() {
       {tab === 'errors' && (
         <>
           <div className="flex justify-between items-center mb-4">
-            <p className="text-sm text-slate-500">{errors.length} error(es) en el log</p>
-            <button onClick={loadErrors} disabled={loadE} className="btn-ghost">
+            <p className="text-sm text-slate-500">{errorsTotal} error(es) en el log</p>
+            <button onClick={() => loadErrors(errorPage)} disabled={loadE} className="btn-ghost">
               <RefreshCw size={13} className={loadE ? 'animate-spin' : ''} /> Recargar
             </button>
           </div>
           <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
-            <Table columns={errorColumns} data={errors} loading={loadE} emptyMessage="✓ Sin errores registrados" />
+            <Table
+              columns={errorColumns}
+              data={errors}
+              loading={loadE}
+              emptyMessage="✓ Sin errores registrados"
+              pageSize={ERRORS_PAGE_SIZE}
+              page={errorPage}
+              totalItems={errorsTotal}
+              onPageChange={loadErrors}
+            />
           </div>
         </>
       )}

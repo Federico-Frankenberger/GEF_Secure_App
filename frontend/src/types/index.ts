@@ -1,3 +1,12 @@
+// ── Paginación (respuesta de Spring Data Page<T>) ───────────────────────────
+export interface PageResponse<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
+}
+
 // ── Environment ───────────────────────────────────────────────────────────────
 export interface Environment {
   id: number
@@ -106,6 +115,7 @@ export interface VulnerabilityAudit {
   assetId: number | null
   asset: string | null
   componentName: string | null
+  environmentName: string | null
   cveId: string | null
   cvss: string | null
   exploited: boolean
@@ -116,6 +126,20 @@ export interface VulnerabilityAudit {
   resolvedAt: string | null
   ghsaId: string | null
   updatedAt: string
+  software: string | null
+  ecosystem: string | null
+  installedVersion: string | null
+  patchedVersion: string | null
+  isZeroDay: boolean | null
+}
+
+// ── GHSA Advisory (Frente 3: descripción real de la vulnerabilidad) ────────
+export interface GhsaAdvisory {
+  ghsaId: string
+  summary: string | null
+  description: string | null
+  references: string[]
+  cachedAt: string | null
 }
 
 export interface VulnerabilityRequest {
@@ -231,6 +255,28 @@ export interface ScanComparison {
   resolvedSinceA: VulnerabilityAudit[]
   persisting: VulnerabilityAudit[]
   severityChanges: SeverityChange[]
+}
+
+// ── Inventario (SBOM CycloneDX) ─────────────────────────────────────────────
+export type InventoryItemStatus = 'NUEVO' | 'ACTUALIZADO' | 'SIN_CAMBIOS' | 'NO_RECONOCIDO' | 'ERROR'
+
+export interface InventoryItem {
+  coordinate: string
+  ecosystem: string
+  version: string
+  previousVersion: string | null
+  status: InventoryItemStatus
+  detail: string | null
+}
+
+export interface InventorySummary {
+  total: number
+  nuevos: number
+  actualizados: number
+  sinCambios: number
+  noReconocidos: number
+  errores: number
+  items: InventoryItem[]
 }
 
 // ── SystemError ───────────────────────────────────────────────────────────────

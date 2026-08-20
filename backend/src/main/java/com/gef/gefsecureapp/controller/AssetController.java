@@ -1,9 +1,11 @@
 package com.gef.gefsecureapp.controller;
 
 import com.gef.gefsecureapp.dto.AssetDTO;
+import com.gef.gefsecureapp.dto.InventoryDTO;
 import com.gef.gefsecureapp.dto.UserAssetAssignmentDTO;
 import com.gef.gefsecureapp.model.ScanReport;
 import com.gef.gefsecureapp.service.AssetService;
+import com.gef.gefsecureapp.service.InventoryService;
 import com.gef.gefsecureapp.service.N8nWebhookService;
 import com.gef.gefsecureapp.service.ScanService;
 import com.gef.gefsecureapp.service.UserAssetAssignmentService;
@@ -14,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -27,6 +30,7 @@ public class AssetController {
     private final UserAssetAssignmentService assignmentService;
     private final N8nWebhookService webhookService;
     private final ScanService scanService;
+    private final InventoryService inventoryService;
 
     @GetMapping
     @Operation(summary = "Listar / buscar activos")
@@ -84,6 +88,24 @@ public class AssetController {
         ScanReport scan = scanService.start("HOST", asset.getName(), null, null, id);
         webhookService.triggerScanForAssetHost(asset.getName(), asset.getEnvironmentName(), scan.getId());
         return ResponseEntity.accepted().build();
+    }
+
+    // ── Importacion de inventario (SBOM CycloneDX, ej. `syft ... -o cyclonedx-json`) ──
+
+    @PostMapping("/{id}/inventory/preview")
+    @PreAuthorize("hasAnyRole('ADMIN','SECURITY_ANALYST')")
+    @Operation(summary = "Previsualizar un SBOM CycloneDX contra el software actual del activo, sin persistir")
+    public ResponseEntity<InventoryDTO.Summary> previewInventory(
+            @PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(inventoryService.preview(id, file));
+    }
+
+    @PostMapping("/{id}/inventory/import")
+    @PreAuthorize("hasAnyRole('ADMIN','SECURITY_ANALYST')")
+    @Operation(summary = "Importar un SBOM CycloneDX: crea/actualiza el software del activo")
+    public ResponseEntity<InventoryDTO.Summary> importInventory(
+            @PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(inventoryService.importInventory(id, file));
     }
 
     // ── Flujo inyector (§11.16): activo de prueba con software real y vulnerable ──

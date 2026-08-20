@@ -35,6 +35,11 @@ public interface SoftwareComponentRepository extends JpaRepository<SoftwareCompo
     Optional<SoftwareComponent> findBySoftwareAndVersionAndAsset_Environment_IdAndDeletedAtIsNull(
             String software, String version, Long environmentId);
 
+    /** Clave de upsert para la importacion de inventario (SBOM): un mismo software+ecosistema
+     *  no deberia repetirse dos veces dentro del mismo activo. */
+    Optional<SoftwareComponent> findByAsset_IdAndSoftwareAndEcosystemAndDeletedAtIsNull(
+            Long assetId, String software, String ecosystem);
+
     /** Componentes activos de un host, usados para el cascade de borrado logico. */
     List<SoftwareComponent> findByAsset_IdAndDeletedAtIsNull(Long assetId);
 

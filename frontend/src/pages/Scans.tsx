@@ -1,13 +1,14 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { GitCompare, RefreshCw, ScanLine, Search } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo, ReactNode } from 'react'
+import { GitCompare, RefreshCw, ScanLine, Search, ChevronDown, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { softwareComponentApi, environmentApi, assetApi, vulnApi, scanApi } from '../services/api'
+import { softwareComponentApi, environmentApi, assetApi, vulnApi, scanApi, reportApi } from '../services/api'
 import type { SoftwareComponent, Environment, Asset, VulnerabilityAudit, ScanReport, ScanComparison, ScanTargetType } from '../types'
 import PageHeader from '../components/PageHeader'
 import Table, { Column } from '../components/Table'
 import Modal from '../components/Modal'
 import { useScanPolling } from '../hooks/useScanPolling'
 import { useAuth } from '../contexts/AuthContext'
+import { downloadBlob } from '../utils/downloadFile'
 
 const PRIORITY_BADGE: Record<string, string> = {
   CRITICAL: 'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
@@ -45,17 +46,19 @@ const EMPTY_RESULT_MESSAGE: Record<ScanMode, string> = {
 const NO_SCAN_YET_MESSAGE = 'Todavía no se disparó ningún escaneo. Elegí un objetivo y presioná "Escanear" para ver los resultados acá.'
 
 interface GroupedResult {
-  assetId: number | null
-  asset: string
+  label: string
   count: number
   topPriority: string
 }
 
-function groupByAsset(vulns: VulnerabilityAudit[]): GroupedResult[] {
+type GroupField = 'environmentName' | 'asset' | 'componentName'
+
+/** Agrupa por `field` (segun el nivel de la jerarquia) -- ver GroupedVulnerabilityResult. */
+function groupVulns(vulns: VulnerabilityAudit[], field: GroupField, fallback: string): GroupedResult[] {
   const map = new Map<string, GroupedResult>()
   for (const v of vulns) {
-    const key = v.asset ?? 'Sin activo'
-    const entry = map.get(key) ?? { assetId: v.assetId, asset: key, count: 0, topPriority: v.priority ?? '' }
+    const key = v[field] ?? fallback
+    const entry = map.get(key) ?? { label: key, count: 0, topPriority: v.priority ?? '' }
     entry.count += 1
     if (rank(v.priority ?? '') < rank(entry.topPriority)) entry.topPriority = v.priority ?? ''
     map.set(key, entry)
@@ -63,48 +66,97 @@ function groupByAsset(vulns: VulnerabilityAudit[]): GroupedResult[] {
   return Array.from(map.values()).sort((a, b) => rank(a.topPriority) - rank(b.topPriority))
 }
 
-const COMPONENT_NAME_COLUMN: Column<VulnerabilityAudit> = { key: 'componentName', label: 'Componente' }
+const GROUP_LEVEL_LABEL: Record<GroupField, string> = { environmentName: 'Entorno', asset: 'Activo', componentName: 'Componente' }
+const GROUP_LEVEL_FALLBACK: Record<GroupField, string> = { environmentName: 'Sin entorno', asset: 'Sin activo', componentName: 'Sin componente' }
 
-/** GLOBAL/ENTORNO: resumen agrupado por activo, con drill-down al detalle de un activo
- *  puntual (misma tabla que ya se usa para ACTIVO) al hacer click en una fila. ACTIVO
- *  muestra el detalle directo, sin resumen intermedio. HOST (escaneo por Activo/host
- *  completo) también muestra el detalle directo -- agrupar no aporta nada porque ya está
- *  acotado a 1 solo host -- pero con una columna extra "Componente" al frente, porque a
- *  diferencia de ACTIVO puede haber varios componentes distintos en el mismo resultado. */
-function GroupedVulnerabilityResult({ vulns, mode, emptyMessage, vulnColumns, groupedColumns }: {
+/** Jerarquia de agrupamiento por modo, de mas general a mas especifico:
+ *  ACTIVO (un solo componente) -- sin niveles, detalle directo.
+ *  HOST (un activo, varios componentes) -- 1 nivel: Componente.
+ *  ENTORNO (un entorno fijo, varios activos) -- 2 niveles: Activo -> Componente.
+ *  GLOBAL (varios entornos, cada uno con varios activos) -- 3 niveles:
+ *  Entorno -> Activo -> Componente. `path` guarda el valor elegido en cada nivel a
+ *  medida que el usuario hace drill-down; cuando path.length llega a levels.length
+ *  se muestra el detalle plano de vulnerabilidades ya filtrado por todos los niveles
+ *  elegidos. */
+function GroupedVulnerabilityResult({ vulns, mode, emptyMessage, vulnColumns }: {
   vulns: VulnerabilityAudit[]
   mode: ScanMode
   emptyMessage: string
   vulnColumns: Column<VulnerabilityAudit>[]
-  groupedColumns: Column<GroupedResult>[]
 }) {
-  const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
-  const grouped = useMemo(() => groupByAsset(vulns), [vulns])
+  const [path, setPath] = useState<string[]>([])
+  const levels: GroupField[] = useMemo(() => {
+    if (mode === 'HOST') return ['componentName']
+    if (mode === 'ENTORNO') return ['asset', 'componentName']
+    if (mode === 'GLOBAL') return ['environmentName', 'asset', 'componentName']
+    return []
+  }, [mode])
 
-  if (mode === 'ACTIVO' || mode === 'HOST') {
-    const columns = mode === 'HOST' ? [COMPONENT_NAME_COLUMN, ...vulnColumns] : vulnColumns
-    return <Table columns={columns} data={vulns} emptyMessage={emptyMessage} />
-  }
-  if (selectedAsset !== null) {
-    const detail = vulns.filter(v => (v.asset ?? 'Sin activo') === selectedAsset)
+  // Si cambia el resultado (otro reporte del historial, o un escaneo nuevo) el
+  // drill-down previo ya no es valido -- se vuelve al nivel mas alto.
+  useEffect(() => { setPath([]) }, [vulns])
+
+  const filtered = useMemo(
+    () => path.reduce((acc, value, i) => acc.filter(v => (v[levels[i]] ?? GROUP_LEVEL_FALLBACK[levels[i]]) === value), vulns),
+    [vulns, path, levels]
+  )
+
+  const backButton = path.length > 0 && (
+    <div className="px-4 py-2 flex items-center justify-between border-b border-surface-600">
+      <p className="text-sm font-medium text-white">{path.join(' › ')}</p>
+      <button onClick={() => setPath(p => p.slice(0, -1))} className="btn-ghost !py-1">← Volver</button>
+    </div>
+  )
+
+  if (path.length === levels.length) {
     return (
       <div>
-        <div className="px-4 py-2 flex items-center justify-between border-b border-surface-600">
-          <p className="text-sm font-medium text-white">{selectedAsset}</p>
-          <button onClick={() => setSelectedAsset(null)} className="btn-ghost !py-1">← Volver al resumen</button>
-        </div>
-        <Table columns={vulnColumns} data={detail} emptyMessage="Sin resultados" />
+        {backButton}
+        <Table columns={vulnColumns} data={filtered} emptyMessage={path.length ? 'Sin resultados' : emptyMessage} pageSize={20} />
       </div>
     )
   }
+
+  const field = levels[path.length]
+  const grouped = groupVulns(filtered, field, GROUP_LEVEL_FALLBACK[field])
+  const groupedColumns: Column<GroupedResult>[] = [
+    { key: 'label', label: GROUP_LEVEL_LABEL[field] },
+    { key: 'count', label: 'Vulnerabilidades', render: v => <span className="font-mono text-xs">{String(v)}</span> },
+    { key: 'topPriority', label: 'Severidad más alta', render: v => <span className={`badge ${PRIORITY_BADGE[String(v)] ?? ''}`}>{String(v) || 'SIN PRIORIDAD'}</span> },
+  ]
+
   return (
-    <Table
-      columns={groupedColumns}
-      data={grouped}
-      emptyMessage={emptyMessage}
-      keyField="asset"
-      onRowClick={row => setSelectedAsset(row.asset)}
-    />
+    <div>
+      {backButton}
+      <Table
+        columns={groupedColumns}
+        data={grouped}
+        emptyMessage={emptyMessage}
+        keyField="label"
+        onRowClick={row => setPath(p => [...p, row.label])}
+      />
+    </div>
+  )
+}
+
+/** Sección desplegable del comparador de escaneos (Nuevas/Persistentes/Resueltas/Cambios
+ *  de severidad) -- colapsada por defecto para no tirar las 4 tablas de una. */
+function CompareSection({ title, count, colorClass, children }: {
+  title: string
+  count: number
+  colorClass: string
+  children: ReactNode
+}) {
+  return (
+    <details className="group">
+      <summary className="px-5 py-2 flex items-center justify-between cursor-pointer select-none list-none marker:content-none [&::-webkit-details-marker]:hidden">
+        <span className={`text-xs font-semibold uppercase tracking-wider ${colorClass}`}>{title} ({count})</span>
+        <ChevronDown size={14} className="text-slate-500 transition-transform group-open:rotate-180" />
+      </summary>
+      {count === 0
+        ? <p className="text-center py-6 text-sm text-slate-500">Sin novedades.</p>
+        : children}
+    </details>
   )
 }
 
@@ -198,6 +250,8 @@ export default function Scans() {
         } finally {
           setResultLoading(false)
         }
+      }, () => {
+        toast.error(`El escaneo de ${MODE_LABEL[scanMode].toLowerCase()} no respondió a tiempo. Puede seguir corriendo en segundo plano; revisá el Historial más tarde.`)
       })
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al disparar el escaneo')
@@ -214,37 +268,50 @@ export default function Scans() {
     { key: 'detectedAt', label: 'Detectado', render: v => new Date(String(v)).toLocaleString('es-AR') },
   ]
 
-  const groupedColumns: Column<GroupedResult>[] = [
-    { key: 'asset', label: 'Activo' },
-    { key: 'count', label: 'Vulnerabilidades', render: v => <span className="font-mono text-xs">{String(v)}</span> },
-    { key: 'topPriority', label: 'Severidad más alta', render: v => <span className={`badge ${PRIORITY_BADGE[String(v)] ?? ''}`}>{String(v) || 'SIN PRIORIDAD'}</span> },
-  ]
-
   // ── Tab "Historial" ──────────────────────────────────────────────────────
+  const HISTORY_PAGE_SIZE = 20
   const [histFrom, setHistFrom] = useState('')
   const [histTo, setHistTo] = useState('')
   const [histType, setHistType] = useState<'' | ScanMode>('')
   const [histTarget, setHistTarget] = useState('')
+  const [histCode, setHistCode] = useState('')
   const [history, setHistory] = useState<ScanReport[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [histPage, setHistPage] = useState(0)
   const [loadingHistory, setLoadingHistory] = useState(false)
 
-  const loadHistory = useCallback(() => {
+  const historyFilters = useCallback((): Omit<Parameters<typeof scanApi.history>[0], 'page' | 'size'> => ({
+    targetType: histType || undefined,
+    targetName: histTarget || undefined,
+    publicCode: histCode.trim() || undefined,
+    from: histFrom ? new Date(histFrom).toISOString() : undefined,
+    to:   histTo   ? new Date(histTo + 'T23:59:59').toISOString() : undefined,
+  }), [histType, histTarget, histCode, histFrom, histTo])
+
+  const fetchHistory = useCallback((filters: Omit<Parameters<typeof scanApi.history>[0], 'page' | 'size'>, page: number) => {
     setLoadingHistory(true)
-    scanApi.history({
-      targetType: histType || undefined,
-      targetName: histTarget || undefined,
-      from: histFrom ? new Date(histFrom).toISOString() : undefined,
-      to:   histTo   ? new Date(histTo + 'T23:59:59').toISOString() : undefined,
-    })
-      .then(r => setHistory(r.data))
+    scanApi.history({ ...filters, page, size: HISTORY_PAGE_SIZE })
+      .then(r => { setHistory(r.data.content); setHistoryTotal(r.data.totalElements); setHistPage(page) })
       .catch(() => toast.error('Error al cargar el historial'))
       .finally(() => setLoadingHistory(false))
-  }, [histType, histTarget, histFrom, histTo])
+  }, [])
 
-  useEffect(() => { if (tab === 'historial') loadHistory() }, [tab, loadHistory])
+  // "Buscar"/"Recargar"/entrar a la pestaña siempre vuelven a la primera página --
+  // el paginado en sí usa handleHistoryPageChange, que mantiene los filtros actuales.
+  const loadHistory = useCallback(() => {
+    fetchHistory(historyFilters(), 0)
+  }, [fetchHistory, historyFilters])
+
+  const handleHistoryPageChange = (page: number) => fetchHistory(historyFilters(), page)
+
+  // Los filtros se aplican solo al presionar "Buscar" (o "Recargar"), no en cada
+  // cambio -- por eso este efecto depende únicamente de `tab`, no de `loadHistory`.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tab === 'historial') loadHistory() }, [tab])
 
   const clearHistoryFilters = () => {
-    setHistFrom(''); setHistTo(''); setHistType(''); setHistTarget('')
+    setHistFrom(''); setHistTo(''); setHistType(''); setHistTarget(''); setHistCode('')
+    fetchHistory({}, 0)
   }
 
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
@@ -271,8 +338,11 @@ export default function Scans() {
       .finally(() => setLoadingReportVulns(false))
   }
 
-  // Comparación entre dos escaneos (Etapa 5 de trazabilidad)
+  // Comparación entre dos escaneos (Etapa 5 de trazabilidad) -- usa su propia lista
+  // de opciones (independiente de `history`, que ahora solo trae la página visible
+  // de la tabla) para poder elegir entre más escaneos de los que entran en una página.
   const [compareModalOpen, setCompareModalOpen] = useState(false)
+  const [compareOptions, setCompareOptions] = useState<ScanReport[]>([])
   const [compareAId, setCompareAId] = useState<number | ''>('')
   const [compareBId, setCompareBId] = useState<number | ''>('')
   const [comparing, setComparing] = useState(false)
@@ -281,7 +351,12 @@ export default function Scans() {
   const scanOptionLabel = (r: ScanReport) =>
     `${r.publicCode} · ${new Date(r.executedAt).toLocaleString('es-AR')} · ${MODE_LABEL[r.targetType as ScanMode] ?? r.targetType}${r.targetName !== 'TODOS' ? ` — ${r.targetName}` : ''}`
 
-  const openCompareModal = () => setCompareModalOpen(true)
+  const openCompareModal = () => {
+    setCompareModalOpen(true)
+    scanApi.history({ ...historyFilters(), page: 0, size: 100 })
+      .then(r => setCompareOptions(r.data.content))
+      .catch(() => toast.error('Error al cargar los escaneos para comparar'))
+  }
 
   const closeCompareModal = () => {
     setCompareModalOpen(false)
@@ -291,6 +366,34 @@ export default function Scans() {
   }
 
   const backToCompareSelection = () => setComparison(null)
+
+  const [exportingReport, setExportingReport] = useState(false)
+  const exportSelectedReport = async () => {
+    if (!selectedReport) return
+    setExportingReport(true)
+    try {
+      const { data } = await reportApi.scan(selectedReport.id)
+      downloadBlob(data, `informe-escaneo-${selectedReport.id}.pdf`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al generar el informe')
+    } finally {
+      setExportingReport(false)
+    }
+  }
+
+  const [exportingComparison, setExportingComparison] = useState(false)
+  const exportComparison = async () => {
+    if (!comparison) return
+    setExportingComparison(true)
+    try {
+      const { data } = await reportApi.comparison(comparison.scanAId, comparison.scanBId)
+      downloadBlob(data, `informe-comparativo-${comparison.scanAId}-${comparison.scanBId}.pdf`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al generar el informe')
+    } finally {
+      setExportingComparison(false)
+    }
+  }
 
   const handleCompare = () => {
     if (compareAId === '' || compareBId === '' || compareAId === compareBId) return
@@ -415,7 +518,6 @@ export default function Scans() {
                 mode={resultMode ?? scanMode}
                 emptyMessage={resultMode ? EMPTY_RESULT_MESSAGE[resultMode] : NO_SCAN_YET_MESSAGE}
                 vulnColumns={vulnColumns}
-                groupedColumns={groupedColumns}
               />
             )}
           </div>
@@ -426,6 +528,16 @@ export default function Scans() {
         <>
           <div className="card p-3 mb-4 w-fit">
             <div className="flex flex-wrap items-end gap-2">
+              <div className="w-40">
+                <label className="block text-[11px] text-slate-400 mb-0.5">Código</label>
+                <input
+                  type="text"
+                  className="input !py-1.5"
+                  placeholder="ej: SCN-2026-000056"
+                  value={histCode}
+                  onChange={e => setHistCode(e.target.value)}
+                />
+              </div>
               <div className="w-36">
                 <label className="block text-[11px] text-slate-400 mb-0.5">Desde</label>
                 <input type="date" className="input !py-1.5" value={histFrom} onChange={e => setHistFrom(e.target.value)} />
@@ -470,9 +582,9 @@ export default function Scans() {
           </div>
 
           <div className="flex justify-between items-center mb-3">
-            <p className="text-sm text-slate-500">{history.length} escaneo(s)</p>
+            <p className="text-sm text-slate-500">{historyTotal} escaneo(s)</p>
             <div className="flex gap-2">
-              {history.length >= 2 && (
+              {historyTotal >= 2 && (
                 <button onClick={openCompareModal} className="btn-ghost">
                   <GitCompare size={13} /> Comparar escaneos
                 </button>
@@ -490,6 +602,10 @@ export default function Scans() {
               emptyMessage="No hay escaneos registrados para este filtro"
               onRowClick={handleSelectReport}
               selectedKey={selectedReportId}
+              pageSize={HISTORY_PAGE_SIZE}
+              page={histPage}
+              totalItems={historyTotal}
+              onPageChange={handleHistoryPageChange}
             />
           </div>
 
@@ -505,14 +621,14 @@ export default function Scans() {
                   <label className="block text-xs text-slate-400 mb-1">Escaneo A</label>
                   <select className="input w-full" value={compareAId} onChange={e => setCompareAId(e.target.value ? Number(e.target.value) : '')}>
                     <option value="">Elegir escaneo…</option>
-                    {history.map(r => <option key={r.id} value={r.id}>{scanOptionLabel(r)}</option>)}
+                    {compareOptions.map(r => <option key={r.id} value={r.id}>{scanOptionLabel(r)}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">Escaneo B</label>
                   <select className="input w-full" value={compareBId} onChange={e => setCompareBId(e.target.value ? Number(e.target.value) : '')}>
                     <option value="">Elegir escaneo…</option>
-                    {history.map(r => <option key={r.id} value={r.id}>{scanOptionLabel(r)}</option>)}
+                    {compareOptions.map(r => <option key={r.id} value={r.id}>{scanOptionLabel(r)}</option>)}
                   </select>
                 </div>
                 {compareAId !== '' && compareAId === compareBId && (
@@ -533,38 +649,31 @@ export default function Scans() {
               <div className="-m-5 space-y-6">
                 <div className="px-5 pt-1 flex items-center justify-between">
                   <p className="text-xs text-slate-500">
-                    A: {scanOptionLabel(history.find(r => r.id === comparison.scanAId)!)} → B: {scanOptionLabel(history.find(r => r.id === comparison.scanBId)!)}
+                    A: {scanOptionLabel(compareOptions.find(r => r.id === comparison.scanAId)!)} → B: {scanOptionLabel(compareOptions.find(r => r.id === comparison.scanBId)!)}
                   </p>
-                  <button onClick={backToCompareSelection} className="btn-ghost !py-1">Elegir otros</button>
+                  <div className="flex gap-2">
+                    <button onClick={exportComparison} disabled={exportingComparison} className="btn-ghost !py-1">
+                      <Download size={12} /> {exportingComparison ? 'Generando…' : 'Exportar PDF'}
+                    </button>
+                    <button onClick={backToCompareSelection} className="btn-ghost !py-1">Elegir otros</button>
+                  </div>
                 </div>
 
-                <div>
-                  <p className="px-5 pb-2 text-xs font-semibold text-emerald-400 uppercase tracking-wider">Nuevas en B ({comparison.newInB.length})</p>
-                  {comparison.newInB.length === 0
-                    ? <p className="text-center py-6 text-sm text-slate-500">Sin novedades.</p>
-                    : <Table columns={vulnColumns} data={comparison.newInB} emptyMessage="Sin resultados" />}
-                </div>
+                <CompareSection title="Nuevas en B" count={comparison.newInB.length} colorClass="text-emerald-400">
+                  <Table columns={vulnColumns} data={comparison.newInB} emptyMessage="Sin resultados" />
+                </CompareSection>
 
-                <div>
-                  <p className="px-5 pb-2 text-xs font-semibold text-slate-300 uppercase tracking-wider">Persistentes ({comparison.persisting.length})</p>
-                  {comparison.persisting.length === 0
-                    ? <p className="text-center py-6 text-sm text-slate-500">Sin novedades.</p>
-                    : <Table columns={vulnColumns} data={comparison.persisting} emptyMessage="Sin resultados" />}
-                </div>
+                <CompareSection title="Persistentes" count={comparison.persisting.length} colorClass="text-slate-300">
+                  <Table columns={vulnColumns} data={comparison.persisting} emptyMessage="Sin resultados" />
+                </CompareSection>
 
-                <div>
-                  <p className="px-5 pb-2 text-xs font-semibold text-sky-400 uppercase tracking-wider">Resueltas desde A ({comparison.resolvedSinceA.length})</p>
-                  {comparison.resolvedSinceA.length === 0
-                    ? <p className="text-center py-6 text-sm text-slate-500">Sin novedades.</p>
-                    : <Table columns={vulnColumns} data={comparison.resolvedSinceA} emptyMessage="Sin resultados" />}
-                </div>
+                <CompareSection title="Resueltas desde A" count={comparison.resolvedSinceA.length} colorClass="text-sky-400">
+                  <Table columns={vulnColumns} data={comparison.resolvedSinceA} emptyMessage="Sin resultados" />
+                </CompareSection>
 
-                <div>
-                  <p className="px-5 pb-2 text-xs font-semibold text-amber-400 uppercase tracking-wider">Cambios de severidad ({comparison.severityChanges.length})</p>
-                  {comparison.severityChanges.length === 0
-                    ? <p className="text-center py-6 text-sm text-slate-500">Sin novedades.</p>
-                    : <Table columns={severityChangeColumns} data={comparison.severityChanges} emptyMessage="Sin resultados" keyField="cveId" />}
-                </div>
+                <CompareSection title="Cambios de severidad" count={comparison.severityChanges.length} colorClass="text-amber-400">
+                  <Table columns={severityChangeColumns} data={comparison.severityChanges} emptyMessage="Sin resultados" keyField="cveId" />
+                </CompareSection>
               </div>
             )}
           </Modal>
@@ -579,7 +688,12 @@ export default function Scans() {
           >
             {selectedReport && (
               <div className="-m-5">
-                <p className="px-5 pt-1 pb-3 text-xs text-slate-500">{new Date(selectedReport.executedAt).toLocaleString('es-AR')}</p>
+                <div className="px-5 pt-1 pb-3 flex items-center justify-between">
+                  <p className="text-xs text-slate-500">{new Date(selectedReport.executedAt).toLocaleString('es-AR')}</p>
+                  <button onClick={exportSelectedReport} disabled={exportingReport} className="btn-ghost !py-1">
+                    <Download size={12} /> {exportingReport ? 'Generando…' : 'Exportar PDF'}
+                  </button>
+                </div>
                 {loadingReportVulns ? (
                   <div className="px-5 pb-5 space-y-2">
                     {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-10 w-full rounded-lg" />)}
@@ -590,7 +704,6 @@ export default function Scans() {
                     mode={(selectedReport.targetType as ScanMode) ?? 'ACTIVO'}
                     emptyMessage={EMPTY_RESULT_MESSAGE[(selectedReport.targetType as ScanMode) ?? 'ACTIVO']}
                     vulnColumns={vulnColumns}
-                    groupedColumns={groupedColumns}
                   />
                 )}
               </div>

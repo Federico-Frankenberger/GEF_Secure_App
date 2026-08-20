@@ -28,6 +28,7 @@ export function useScanPolling() {
     targetType: ScanTargetType,
     targetName: string,
     onDone?: () => void,
+    onTimeout?: () => void,
   ) => {
     stop()
     setState('running')
@@ -48,6 +49,7 @@ export function useScanPolling() {
       }
       if (Date.now() >= deadline) {
         setState('timeout')
+        onTimeout?.()
         return
       }
       timerRef.current = window.setTimeout(poll, POLL_INTERVAL_MS)

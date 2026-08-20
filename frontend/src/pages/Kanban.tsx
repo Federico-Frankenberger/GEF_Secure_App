@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback, useMemo, ChangeEvent } from 'react'
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd'
-import { RefreshCw, Filter, CalendarX } from 'lucide-react'
+import { RefreshCw, Filter, CalendarX, ExternalLink, Skull, ShieldCheck, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { vulnApi, userApi } from '../services/api'
-import type { VulnerabilityAudit, VulnStatus, User } from '../types'
+import { vulnApi, userApi, ghsaAdvisoryApi, reportApi } from '../services/api'
+import type { VulnerabilityAudit, VulnStatus, User, GhsaAdvisory } from '../types'
 import VulnerabilityCard from '../components/VulnerabilityCard'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import { useAuth } from '../contexts/AuthContext'
+import { downloadBlob } from '../utils/downloadFile'
 
 const COLUMNS: { id: VulnStatus; label: string; color: string }[] = [
   { id: 'DETECTADA',   label: 'Detectadas',  color: 'border-red-500/40    text-red-400'     },
@@ -35,6 +36,7 @@ export default function Kanban() {
   // Filtros inicializados: Fecha de HOY por defecto
   const [filterDate, setFilterDate] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('TODOS')
+  const [filterPriority, setFilterPriority] = useState<string>('TODAS')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -56,14 +58,15 @@ export default function Kanban() {
       // Si filterDate está vacío, no filtra por fecha (muestra todos)
       const matchDate = filterDate ? dateValue.startsWith(filterDate) : true
       const matchStatus = filterStatus === 'TODOS' ? true : v.status === filterStatus
-      return matchDate && matchStatus
+      const matchPriority = filterPriority === 'TODAS' ? true : v.priority === filterPriority
+      return matchDate && matchStatus && matchPriority
     })
 
     return COLUMNS.reduce((acc, col) => {
       acc[col.id] = filtered.filter(v => v.status === col.id)
       return acc
     }, {} as Board)
-  }, [rawVulns, filterDate, filterStatus])
+  }, [rawVulns, filterDate, filterStatus, filterPriority])
 
   const onDragEnd = async ({ source, destination, draggableId }: DropResult) => {
     if (isAuditor || !destination || source.droppableId === destination.droppableId) return
@@ -81,9 +84,38 @@ export default function Kanban() {
     }
   }
 
+  // Frente 3: descripción real de la advisory (GHSA), pedida al abrir el modal.
+  const [advisory,        setAdvisory]        = useState<GhsaAdvisory | null>(null)
+  const [loadingAdvisory, setLoadingAdvisory]  = useState(false)
+  const [advisoryError,   setAdvisoryError]    = useState(false)
+  const [exportingFicha,  setExportingFicha]   = useState(false)
+
+  const exportFicha = async (vuln: VulnerabilityAudit) => {
+    const identifier = vuln.cveId || vuln.ghsaId
+    if (!identifier) return
+    setExportingFicha(true)
+    try {
+      const { data } = await reportApi.cve(identifier)
+      downloadBlob(data, `ficha-${identifier}.pdf`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al generar la ficha')
+    } finally {
+      setExportingFicha(false)
+    }
+  }
+
   const openEdit = (vuln: VulnerabilityAudit) => {
     setSelected(vuln)
     setForm({ status: vuln.status, assignedTo: vuln.assignedTo ?? '', decision: vuln.decision ?? '' })
+    setAdvisory(null)
+    setAdvisoryError(false)
+    if (vuln.ghsaId) {
+      setLoadingAdvisory(true)
+      ghsaAdvisoryApi.get(vuln.ghsaId)
+        .then(r => setAdvisory(r.data))
+        .catch(() => setAdvisoryError(true))
+        .finally(() => setLoadingAdvisory(false))
+    }
   }
 
 const handleSave = async () => {
@@ -148,6 +180,19 @@ const handleSave = async () => {
               {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
 
+            {/* SELECTOR DE CRITICIDAD */}
+            <select
+              value={filterPriority}
+              onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterPriority(e.target.value)}
+              className="bg-surface-800 text-xs text-white px-3 py-1.5 rounded-lg border border-white/5 outline-none cursor-pointer hover:bg-surface-700 transition-colors"
+            >
+              <option value="TODAS">Todas las criticidades</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+            </select>
+
             <button onClick={load} disabled={loading} className="btn-ghost p-2 rounded-lg bg-surface-800 border border-white/5">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
@@ -203,13 +248,66 @@ const handleSave = async () => {
       )}
 
       {/* MODAL DE EDICIÓN */}
-      <Modal title="Gestión de Vulnerabilidad" open={!!selected} onClose={() => setSelected(null)}>
+      <Modal title="Gestión de Vulnerabilidad" open={!!selected} onClose={() => setSelected(null)} size="lg">
         {selected && (
           <div className="space-y-4">
-            <div className="bg-surface-900 border border-white/5 rounded-lg p-3 font-mono text-[11px] space-y-1 shadow-inner">
-              <p><span className="text-slate-500">CVE/ID: </span><span className="text-brand-400 font-bold">{selected.cveId || selected.ghsaId || 'N/A'}</span></p>
-              <p><span className="text-slate-500">Asset: </span><span className="text-white">{selected.asset}</span></p>
-              <p><span className="text-slate-500">Fecha: </span><span className="text-white">{selected.detectedAt ? new Date(selected.detectedAt).toLocaleString('es-AR') : '—'}</span></p>
+            {/* Contexto técnico: de solo lectura, todo lo que ya sabemos del hallazgo */}
+            <div className="bg-surface-900 border border-white/5 rounded-lg p-3 font-mono text-[11px] space-y-1.5 shadow-inner">
+              <p className="flex items-center gap-2 flex-wrap">
+                <span className="text-slate-500">CVE/ID: </span>
+                <span className="text-brand-400 font-bold">{selected.cveId || selected.ghsaId || 'N/A'}</span>
+                {selected.cveId && selected.cveId !== 'N/A' && (
+                  <a href={`https://nvd.nist.gov/vuln/detail/${selected.cveId}`} target="_blank" rel="noreferrer"
+                     className="text-slate-500 hover:text-brand-400 inline-flex items-center gap-0.5">
+                    NVD <ExternalLink size={9} />
+                  </a>
+                )}
+                {selected.ghsaId && (
+                  <a href={`https://github.com/advisories/${selected.ghsaId}`} target="_blank" rel="noreferrer"
+                     className="text-slate-500 hover:text-brand-400 inline-flex items-center gap-0.5">
+                    GHSA <ExternalLink size={9} />
+                  </a>
+                )}
+              </p>
+              <p><span className="text-slate-500">Paquete: </span><span className="text-white">{selected.software || selected.componentName || '—'}</span>{selected.ecosystem && <span className="text-slate-500"> ({selected.ecosystem})</span>}</p>
+              <p>
+                <span className="text-slate-500">Versión: </span>
+                <span className="text-white">{selected.installedVersion || '—'}</span>
+                {selected.isZeroDay ? (
+                  <span className="ml-2 text-red-400 inline-flex items-center gap-1"><Skull size={10} /> ZERO-DAY · sin parche disponible</span>
+                ) : selected.patchedVersion ? (
+                  <span className="ml-2 text-emerald-400 inline-flex items-center gap-1"><ShieldCheck size={10} /> parche disponible → v{selected.patchedVersion}</span>
+                ) : null}
+              </p>
+              <p><span className="text-slate-500">Activo: </span><span className="text-white">{selected.asset}</span>{selected.environmentName && <span className="text-slate-500"> · {selected.environmentName}</span>}</p>
+              <p><span className="text-slate-500">Detectado: </span><span className="text-white">{selected.detectedAt ? new Date(selected.detectedAt).toLocaleString('es-AR') : '—'}</span></p>
+            </div>
+
+            {/* Descripción real de la advisory (Frente 3) -- qué es esto, en criollo */}
+            <div className="bg-surface-900 border border-white/5 rounded-lg p-3 text-xs shadow-inner">
+              <p className="text-[10px] uppercase font-bold text-slate-500 mb-1.5">Descripción de la vulnerabilidad</p>
+              {!selected.ghsaId ? (
+                <p className="text-slate-500 italic">Este hallazgo no tiene una advisory de GitHub asociada.</p>
+              ) : loadingAdvisory ? (
+                <p className="text-slate-500">Cargando…</p>
+              ) : advisoryError ? (
+                <p className="text-slate-500 italic">No se pudo cargar la descripción desde GitHub en este momento.</p>
+              ) : advisory ? (
+                <div className="space-y-2">
+                  {advisory.summary && <p className="text-white font-medium">{advisory.summary}</p>}
+                  {advisory.description && (
+                    <p className="text-slate-300 whitespace-pre-wrap max-h-40 overflow-y-auto">{advisory.description}</p>
+                  )}
+                  {advisory.references.length > 0 && (
+                    <div className="pt-1 space-y-0.5">
+                      {advisory.references.slice(0, 5).map(url => (
+                        <a key={url} href={url} target="_blank" rel="noreferrer"
+                           className="block text-brand-400 hover:underline truncate">{url}</a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -229,14 +327,14 @@ const handleSave = async () => {
             </div>
 
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Notas de Remediación</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Notas del analista</label>
               <textarea
                 className="input w-full bg-surface-800 border-white/10 text-xs resize-none"
                 rows={4}
                 value={form.decision}
                 disabled={isAuditor}
                 onChange={e => setForm(f => ({ ...f, decision: e.target.value }))}
-                placeholder="Indicar pasos seguidos o decisión tomada..."
+                placeholder="Pasos seguidos, decisión tomada, contexto adicional..."
               />
             </div>
 
@@ -245,6 +343,11 @@ const handleSave = async () => {
                 <button onClick={() => handleDelete(selected.id)} className="text-[10px] uppercase font-bold text-red-500 hover:text-red-400 transition-colors">Eliminar</button>
               )}
               <div className="flex gap-2 ml-auto">
+                {(selected.cveId || selected.ghsaId) && (
+                  <button onClick={() => exportFicha(selected)} disabled={exportingFicha} className="btn-ghost text-xs px-4">
+                    <Download size={12} /> {exportingFicha ? 'Generando…' : 'Exportar ficha PDF'}
+                  </button>
+                )}
                 <button onClick={() => setSelected(null)} className="btn-ghost text-xs px-4">Cerrar</button>
                 {!isAuditor && (
                   <button onClick={handleSave} disabled={saving} className="btn-primary text-xs px-6 py-2 shadow-lg shadow-brand-500/20">

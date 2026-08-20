@@ -5,11 +5,11 @@ import com.gef.gefsecureapp.repository.SystemErrorRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/system-errors")
@@ -21,9 +21,11 @@ public class SystemErrorController {
     private final SystemErrorRepository systemErrorRepository;
 
     @GetMapping
-    @Operation(summary = "Últimos 50 errores del sistema")
-    public ResponseEntity<List<SystemError>> findAll() {
-        return ResponseEntity.ok(systemErrorRepository.findTop50ByOrderByErrorDateDesc());
+    @Operation(summary = "Log de errores del sistema, paginado")
+    public ResponseEntity<Page<SystemError>> findAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(systemErrorRepository.findAllByOrderByErrorDateDesc(PageRequest.of(page, size)));
     }
 
     @DeleteMapping("/{id}")

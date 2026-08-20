@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Plus, Search, Pencil, Trash2, ScanLine, RefreshCw, Archive, RotateCcw, Syringe } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, ScanLine, RefreshCw, Archive, RotateCcw, Syringe, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { assetApi, environmentApi, softwareComponentApi, assetTypeApi, ecosystemApi } from '../services/api'
-import type { Asset, AssetRequest, DeletedAsset, Environment, SoftwareComponent, SoftwareComponentRequest, SoftwareCatalogEntry, AssetType, Ecosystem } from '../types'
+import { assetApi, environmentApi, softwareComponentApi, assetTypeApi, ecosystemApi, inventoryApi } from '../services/api'
+import type { Asset, AssetRequest, DeletedAsset, Environment, SoftwareComponent, SoftwareComponentRequest, SoftwareCatalogEntry, AssetType, Ecosystem, InventorySummary, InventoryItemStatus } from '../types'
 import PageHeader from '../components/PageHeader'
 import Table, { Column } from '../components/Table'
 import Modal from '../components/Modal'
@@ -19,6 +19,18 @@ const CRITICALITY_BADGE: Record<string, string> = {
   'HIGH':     'bg-[#f95c5c]/15 text-[#f95c5c] border border-[#f95c5c]/30',
   'MEDIUM':   'bg-[#f9f15c]/15 text-yellow-200 border border-[#f9f15c]/30',
   'LOW':      'bg-[#44a024]/15 text-[#44a024] border border-[#44a024]/30',
+}
+
+const INVENTORY_STATUS_BADGE: Record<InventoryItemStatus, string> = {
+  NUEVO:         'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30',
+  ACTUALIZADO:   'bg-amber-600/20 text-amber-400 border border-amber-600/30',
+  SIN_CAMBIOS:   'bg-slate-600/30 text-slate-300 border border-slate-500/30',
+  NO_RECONOCIDO: 'bg-[#f9f15c]/15 text-yellow-200 border border-[#f9f15c]/30',
+  ERROR:         'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
+}
+const INVENTORY_STATUS_LABEL: Record<InventoryItemStatus, string> = {
+  NUEVO: 'Nuevo', ACTUALIZADO: 'Actualizado', SIN_CAMBIOS: 'Sin cambios',
+  NO_RECONOCIDO: 'No reconocido', ERROR: 'Error',
 }
 
 const EMPTY_ASSET_FORM: AssetRequest = {
@@ -199,6 +211,57 @@ export default function Assets() {
   const [ecosystemLocked,  setEcosystemLocked]  = useState(false)
   const { start: startPolling } = useScanPolling()
 
+  // ── Importación de inventario (SBOM CycloneDX, ej. Syft) ─────────────────
+  const [inventoryModal,   setInventoryModal]   = useState(false)
+  const [inventoryFile,    setInventoryFile]    = useState<File | null>(null)
+  const [inventoryPreview, setInventoryPreview] = useState<InventorySummary | null>(null)
+  const [inventoryBusy,    setInventoryBusy]    = useState(false)
+
+  const openInventoryModal = () => {
+    setInventoryFile(null)
+    setInventoryPreview(null)
+    setInventoryModal(true)
+  }
+
+  const closeInventoryModal = () => {
+    setInventoryModal(false)
+    setInventoryFile(null)
+    setInventoryPreview(null)
+  }
+
+  const handleInventoryFileChange = (file: File | null) => {
+    setInventoryFile(file)
+    setInventoryPreview(null)
+  }
+
+  const handleInventoryPreview = async () => {
+    if (!inventoryFile || selected === null) return
+    setInventoryBusy(true)
+    try {
+      const { data } = await inventoryApi.preview(selected, inventoryFile)
+      setInventoryPreview(data)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al leer el archivo')
+    } finally {
+      setInventoryBusy(false)
+    }
+  }
+
+  const handleInventoryImport = async () => {
+    if (!inventoryFile || selected === null) return
+    setInventoryBusy(true)
+    try {
+      const { data } = await inventoryApi.import(selected, inventoryFile)
+      toast.success(`Importación completa: ${data.nuevos} nuevos, ${data.actualizados} actualizados`)
+      closeInventoryModal()
+      loadComponents()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al importar el inventario')
+    } finally {
+      setInventoryBusy(false)
+    }
+  }
+
   const openCreateComponent = () => {
     if (selected === null) return
     setEditingComp(null)
@@ -268,6 +331,8 @@ export default function Assets() {
       startPolling('ACTIVO', component.name, () => {
         toast.success(`Escaneo de "${component.name}" completo`)
         loadComponents()
+      }, () => {
+        toast.error(`El escaneo de "${component.name}" no respondió a tiempo. Puede seguir corriendo en segundo plano; revisá el Centro de Escaneos más tarde.`)
       })
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al disparar el escaneo')
@@ -295,14 +360,17 @@ export default function Assets() {
   ]
 
   const componentColumns: Column<SoftwareComponent>[] = [
-    { key: 'name', label: 'Nombre' },
+    {
+      key: 'name', label: 'Nombre',
+      render: v => <span className="block max-w-[180px] truncate" title={String(v)}>{String(v)}</span>,
+    },
     {
       key: 'software', label: 'Software',
       render: (v, row) => (
-        <span className="inline-flex items-center gap-1.5">
-          {String(v)}
+        <span className="inline-flex items-center gap-1.5 max-w-[220px]">
+          <span className="truncate min-w-0" title={String(v)}>{String(v)}</span>
           {!row.catalogued && (
-            <span className="badge bg-slate-700 text-slate-300" title="No está en el catálogo de GitHub Advisory: no participa de la correlación automática de vulnerabilidades">
+            <span className="badge bg-slate-700 text-slate-300 shrink-0" title="No está en el catálogo de GitHub Advisory: no participa de la correlación automática de vulnerabilidades">
               no catalogado
             </span>
           )}
@@ -411,6 +479,7 @@ export default function Assets() {
               emptyMessage="No hay activos registrados"
               onRowClick={a => setSelected(prev => prev === a.id ? null : a.id)}
               selectedKey={selected}
+              pageSize={20}
             />
           </div>
 
@@ -428,6 +497,7 @@ export default function Assets() {
               data={deletedAssets}
               loading={loadingDeleted}
               emptyMessage="No hay activos eliminados"
+              pageSize={20}
             />
           </div>
         </>
@@ -438,19 +508,101 @@ export default function Assets() {
         title={selectedAsset ? `Software de ${selectedAsset.name}` : 'Software del activo'}
         open={selected !== null && !!selectedAsset}
         onClose={() => setSelected(null)}
-        size="xl"
+        size="2xl"
       >
         {selectedAsset && (
           <div className="-m-5">
             <div className="flex items-center justify-between px-5 pt-1 pb-3">
               <p className="text-xs text-slate-500">{selectedAsset.assetType} · {selectedAsset.environmentName ?? 'sin entorno'}</p>
               {canWrite && (
-                <button onClick={openCreateComponent} className="btn-primary !py-1.5"><Plus size={13} /> Agregar Software</button>
+                <div className="flex gap-2">
+                  <button onClick={openInventoryModal} className="btn-ghost !py-1.5"><Upload size={13} /> Importar inventario</button>
+                  <button onClick={openCreateComponent} className="btn-primary !py-1.5"><Plus size={13} /> Agregar Software</button>
+                </div>
               )}
             </div>
-            <Table columns={componentColumns} data={detailComponents} loading={loadingComps} emptyMessage="Este activo no tiene software instalado" />
+            <Table columns={componentColumns} data={detailComponents} loading={loadingComps} emptyMessage="Este activo no tiene software instalado" pageSize={15} />
           </div>
         )}
+      </Modal>
+
+      {/* Modal importación de inventario (SBOM CycloneDX, ej. `syft ... -o cyclonedx-json`) */}
+      <Modal
+        title={selectedAsset ? `Importar inventario · ${selectedAsset.name}` : 'Importar inventario'}
+        open={inventoryModal}
+        onClose={closeInventoryModal}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-400">
+            Subí el SBOM (formato CycloneDX JSON) generado con Syft para este activo, ej: <code className="text-slate-300">syft dir:C:\apps\mi-app -o cyclonedx-json</code>.
+          </p>
+
+          <input
+            type="file"
+            accept="application/json,.json"
+            onChange={e => handleInventoryFileChange(e.target.files?.[0] ?? null)}
+            className="input"
+          />
+
+          {inventoryPreview && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="badge bg-slate-700 text-slate-300">Total: {inventoryPreview.total}</span>
+                <span className={`badge ${INVENTORY_STATUS_BADGE.NUEVO}`}>Nuevos: {inventoryPreview.nuevos}</span>
+                <span className={`badge ${INVENTORY_STATUS_BADGE.ACTUALIZADO}`}>Actualizados: {inventoryPreview.actualizados}</span>
+                <span className={`badge ${INVENTORY_STATUS_BADGE.SIN_CAMBIOS}`}>Sin cambios: {inventoryPreview.sinCambios}</span>
+                {inventoryPreview.noReconocidos > 0 && (
+                  <span className={`badge ${INVENTORY_STATUS_BADGE.NO_RECONOCIDO}`}>No reconocidos: {inventoryPreview.noReconocidos}</span>
+                )}
+                {inventoryPreview.errores > 0 && (
+                  <span className={`badge ${INVENTORY_STATUS_BADGE.ERROR}`}>Errores: {inventoryPreview.errores}</span>
+                )}
+              </div>
+              <div className="max-h-72 overflow-y-auto rounded-lg border border-surface-600">
+                <table className="w-full text-xs">
+                  <thead className="bg-surface-800 text-slate-400">
+                    <tr>
+                      <th className="text-left px-3 py-2">Paquete</th>
+                      <th className="text-left px-3 py-2">Ecosistema</th>
+                      <th className="text-left px-3 py-2">Versión</th>
+                      <th className="text-left px-3 py-2">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventoryPreview.items.map((item, i) => (
+                      <tr key={i} className="border-t border-surface-700">
+                        <td className="px-3 py-2 font-mono text-slate-300">{item.coordinate}</td>
+                        <td className="px-3 py-2 text-slate-400">{item.ecosystem ?? '—'}</td>
+                        <td className="px-3 py-2 font-mono text-slate-400">
+                          {item.previousVersion ? `${item.previousVersion} → ${item.version}` : item.version ?? '—'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`badge ${INVENTORY_STATUS_BADGE[item.status]}`} title={item.detail ?? undefined}>
+                            {INVENTORY_STATUS_LABEL[item.status]}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={closeInventoryModal} className="btn-ghost">Cancelar</button>
+            {!inventoryPreview ? (
+              <button onClick={handleInventoryPreview} disabled={!inventoryFile || inventoryBusy} className="btn-primary">
+                {inventoryBusy ? 'Leyendo…' : 'Vista previa'}
+              </button>
+            ) : (
+              <button onClick={handleInventoryImport} disabled={inventoryBusy} className="btn-primary">
+                {inventoryBusy ? 'Importando…' : 'Confirmar importación'}
+              </button>
+            )}
+          </div>
+        </div>
       </Modal>
 
       {/* Modal activo (host) */}
