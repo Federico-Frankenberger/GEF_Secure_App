@@ -40,8 +40,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  // FE-05 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes isAuthenticated dependía de
+  // `user` (localStorage `gef_user`), no del token real. Si por lo que sea quedaba
+  // `gef_user` en localStorage sin `gef_token` (ej. el interceptor 401 corta a mitad de
+  // camino entre los dos `removeItem`), la UI seguía mostrando al usuario como logueado
+  // aunque cada request al backend fuera a devolver 401.
+  const isAuthenticated = !!user && !!localStorage.getItem(TOKEN_KEY)
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

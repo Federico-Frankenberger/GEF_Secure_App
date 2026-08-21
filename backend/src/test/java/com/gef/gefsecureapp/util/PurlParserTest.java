@@ -20,8 +20,7 @@ class PurlParserTest {
             "pkg:gem/rails@7.0.0, rubygems, rails, 7.0.0",
             "pkg:composer/symfony/console@6.0.0, composer, symfony/console, 6.0.0",
             "pkg:golang/github.com/gin-gonic/gin@v1.9.0, go, github.com/gin-gonic/gin, v1.9.0",
-            "pkg:cargo/serde@1.0.0, rust, serde, 1.0.0",
-            "pkg:oci/postgres@15?arch=amd64, docker, postgres, 15",
+            "pkg:cargo/serde@1.0.0, cargo, serde, 1.0.0",
     })
     @DisplayName("parse() traduce distintos tipos de purl a (ecosystem, coordinate, version)")
     void parse_should_translateKnownPurlTypes(String purl, String ecosystem, String coordinate, String version) {
@@ -40,6 +39,13 @@ class PurlParserTest {
     }
 
     @Test
+    @DisplayName("ECO-CATALOGO (docs/20-08-26/AUDITORIA_END_TO_END_2.md): parse() no reconoce docker/oci -- no hay ecosistema equivalente en GitHub Advisory ni en el catalogo administrable, mejor NO_RECONOCIDO que persistir un ecosystem que nunca va a matchear")
+    void parse_should_returnEmpty_forDockerOciImages() {
+        assertThat(PurlParser.parse("pkg:oci/postgres@15?arch=amd64")).isEmpty();
+        assertThat(PurlParser.parse("pkg:docker/postgres@15")).isEmpty();
+    }
+
+    @Test
     @DisplayName("parse() devuelve vacio cuando no hay version")
     void parse_should_returnEmpty_when_versionIsMissing() {
         assertThat(PurlParser.parse("pkg:npm/axios")).isEmpty();
@@ -50,5 +56,14 @@ class PurlParserTest {
     void parse_should_returnEmpty_when_inputIsInvalid() {
         assertThat(PurlParser.parse(null)).isEmpty();
         assertThat(PurlParser.parse("no-es-un-purl")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("M1 (docs/20-08-26/AUDITORIA_END_TO_END.md): un '+' literal en la version (build metadata semver) no se convierte en espacio")
+    void parse_should_keepLiteralPlus_inVersion() {
+        Optional<PurlParser.Parsed> result = PurlParser.parse("pkg:npm/algo@1.0.0+build.5");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().version()).isEqualTo("1.0.0+build.5");
     }
 }

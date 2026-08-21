@@ -1,10 +1,16 @@
 import { useEffect, useState, ReactNode } from 'react'
-import { FileText, Download, GitCompare, TrendingUp, Search } from 'lucide-react'
+import { FileText, Download, GitCompare, TrendingUp, Search, ShieldAlert } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { scanApi, reportApi } from '../services/api'
 import type { ScanReport, ScanTargetType } from '../types'
 import PageHeader from '../components/PageHeader'
 import { downloadBlob } from '../utils/downloadFile'
+import { useAuth } from '../contexts/AuthContext'
+
+// FE-13 (docs/20-08-26/AUDITORIA_END_TO_END.md): "Informes" incluye el resumen ejecutivo
+// y la exportación de cualquier escaneo del historial -- restringido acá al mismo criterio
+// que ya aplica el backend (C2) para no ofrecer un flujo que va a terminar en 404/vacío.
+const ALLOWED_ROLES = ['ADMIN', 'SECURITY_ANALYST']
 
 const TARGET_LABEL: Record<ScanTargetType, string> = {
   ACTIVO: 'Componente', HOST: 'Activo', ENTORNO: 'Entorno', GLOBAL: 'Global',
@@ -34,13 +40,29 @@ function ReportCard({ icon: Icon, title, description, children }: {
 }
 
 export default function Informes() {
+  const { user } = useAuth()
+  const allowed = user != null && ALLOWED_ROLES.includes(user.role)
+
   const [scans, setScans] = useState<ScanReport[]>([])
 
   useEffect(() => {
+    if (!allowed) return
     scanApi.history({ page: 0, size: 100 })
       .then(r => setScans(r.data.content))
       .catch(() => toast.error('Error al cargar el historial de escaneos'))
-  }, [])
+  }, [allowed])
+
+  if (!allowed) {
+    return (
+      <div className="animate-fade-in">
+        <PageHeader title="Informes" subtitle="Exportación de informes en PDF sobre escaneos y vulnerabilidades" />
+        <div className="card flex flex-col items-center gap-3 py-12 text-center">
+          <ShieldAlert size={28} className="text-slate-500" />
+          <p className="text-sm text-slate-400">Tu rol no tiene acceso a esta sección.</p>
+        </div>
+      </div>
+    )
+  }
 
   // ── Informe de escaneo puntual ────────────────────────────────────────────
   const [scanId, setScanId] = useState<number | ''>('')

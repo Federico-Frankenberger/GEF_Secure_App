@@ -17,6 +17,14 @@ yarn-error.log*
 dist/
 build/
 
+# Gradle (CFG-01, docs/20-08-26/AUDITORIA_END_TO_END.md): backend/.gradle/ quedó
+# versionado en algún commit anterior a que esto existiera acá -- son binarios de caché
+# de build local que se regeneran solos, generan ruido de diff en cada build de cada
+# desarrollador. No se hace "git rm --cached" en esta corrida (reescribe qué hay
+# trackeado, se confirma aparte); esto solo evita que se agreguen más cambios de ahí en
+# adelante.
+.gradle/
+
 # Archivos del sistema
 .DS_Store
 Thumbs.db

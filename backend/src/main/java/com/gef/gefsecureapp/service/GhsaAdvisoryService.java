@@ -30,6 +30,11 @@ public class GhsaAdvisoryService {
 
     private static final String ADVISORIES_URL = "https://api.github.com/advisories/{ghsaId}";
 
+    // M4 (docs/20-08-26/AUDITORIA_END_TO_END.md): esta cache no tenia TTL -- una
+    // vez guardada una advisory quedaba servida para siempre, incluso si GitHub
+    // la actualiza (nueva version, CVSS revisado, mas referencias).
+    private static final long CACHE_TTL_DAYS = 30;
+
     private final GhsaAdvisoryCacheRepository cacheRepository;
     private final RestClient.Builder restClientBuilder;
 
@@ -42,6 +47,8 @@ public class GhsaAdvisoryService {
             throw new GhsaAdvisoryUnavailableException("Este hallazgo no tiene un GHSA ID asociado");
 
         return cacheRepository.findById(ghsaId)
+                .filter(cached -> cached.getFetchedAt() != null
+                        && cached.getFetchedAt().isAfter(LocalDateTime.now().minusDays(CACHE_TTL_DAYS)))
                 .map(this::toDto)
                 .orElseGet(() -> fetchAndCache(ghsaId));
     }

@@ -8,6 +8,7 @@ import com.gef.gefsecureapp.service.N8nWebhookService;
 import com.gef.gefsecureapp.service.ScanService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -42,7 +43,7 @@ public class EnvironmentController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Environment> create(@RequestBody Environment env) {
+    public ResponseEntity<Environment> create(@Valid @RequestBody Environment env) {
         env.setId(null);
         env.setCreatedAt(LocalDateTime.now());
         return ResponseEntity.status(HttpStatus.CREATED).body(environmentRepository.save(env));
@@ -50,7 +51,7 @@ public class EnvironmentController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Environment> update(@PathVariable Long id, @RequestBody Environment dto) {
+    public ResponseEntity<Environment> update(@PathVariable Long id, @Valid @RequestBody Environment dto) {
         Environment existing = environmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Environment", id));
         existing.setName(dto.getName());

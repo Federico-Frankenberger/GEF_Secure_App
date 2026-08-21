@@ -7,11 +7,14 @@ import com.gef.gefsecureapp.model.Environment;
 import com.gef.gefsecureapp.model.SoftwareCatalog;
 import com.gef.gefsecureapp.model.SoftwareComponent;
 import com.gef.gefsecureapp.repository.AssetRepository;
+import com.gef.gefsecureapp.repository.EcosystemRepository;
 import com.gef.gefsecureapp.repository.SoftwareCatalogRepository;
+import com.gef.gefsecureapp.exception.InvalidEcosystemException;
 import com.gef.gefsecureapp.exception.ResourceNotFoundException;
 import com.gef.gefsecureapp.repository.SoftwareComponentRepository;
 import com.gef.gefsecureapp.security.TestAuth;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,8 +43,17 @@ class SoftwareComponentServiceTest {
     @Mock private SoftwareCatalogRepository softwareCatalogRepository;
     @Mock private AssetRepository assetRepository;
     @Mock private UserAssetAssignmentService userAssetAssignmentService;
+    @Mock private EcosystemRepository ecosystemRepository;
 
     @InjectMocks private SoftwareComponentService softwareComponentService;
+
+    @BeforeEach
+    void setUp() {
+        // ECO-CATALOGO (docs/20-08-26/AUDITORIA_END_TO_END_2.md): default para todos los tests
+        // que no ejercitan especificamente el rechazo -- lenient() porque no todos los tests de
+        // esta clase llegan a normalize()/create()/update() (ej. findAll(), delete()).
+        lenient().when(ecosystemRepository.existsByNameIgnoreCase(any())).thenReturn(true);
+    }
 
     @AfterEach
     void clearSecurityContext() {
@@ -140,8 +152,50 @@ class SoftwareComponentServiceTest {
         Asset asset = Asset.builder().id(9L).environment(env).build();
         when(softwareComponentMapper.toEntity(dto)).thenReturn(new SoftwareComponent());
         when(assetRepository.findById(9L)).thenReturn(Optional.of(asset));
-        when(softwareComponentRepository.findBySoftwareAndVersionAndAsset_Environment_IdAndDeletedAtIsNull("express", "4.18.2", 1L))
+        when(softwareComponentRepository.findByAsset_IdAndSoftwareAndEcosystemAndVersionAndDeletedAtIsNull(
+                9L, "express", "npm", "4.18.2"))
                 .thenReturn(Optional.of(new SoftwareComponent()));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.gef.gefsecureapp.exception.ConflictException.class,
+                () -> softwareComponentService.create(dto));
+    }
+
+    // ── DB-05 (docs/20-08-26/AUDITORIA_END_TO_END.md) ──────────────────────────────
+
+    @Test
+    @DisplayName("create() ya NO rechaza el mismo software+version en un activo DISTINTO del mismo entorno (bug viejo: colisionaba por entorno completo)")
+    void create_should_allowSameSoftwareVersion_onDifferentAssetOfSameEnvironment() {
+        SoftwareComponentDTO.Request dto = SoftwareComponentDTO.Request.builder()
+                .name("Otro host, mismo paquete")
+                .software("express").ecosystem("npm").version("4.18.2")
+                .assetId(20L)
+                .build();
+
+        when(softwareComponentMapper.toEntity(dto)).thenReturn(new SoftwareComponent());
+        when(assetRepository.findById(20L)).thenReturn(Optional.of(Asset.builder().id(20L).build()));
+        when(softwareComponentRepository.findByAsset_IdAndSoftwareAndEcosystemAndVersionAndDeletedAtIsNull(
+                20L, "express", "npm", "4.18.2")).thenReturn(Optional.empty());
+        when(softwareComponentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> softwareComponentService.create(dto));
+    }
+
+    @Test
+    @DisplayName("create() traduce una violacion de constraint concurrente (dos requests casi simultaneas) a ConflictException, no a un 500 crudo")
+    void create_should_translateConcurrentConstraintViolation_toConflictException() {
+        SoftwareComponentDTO.Request dto = SoftwareComponentDTO.Request.builder()
+                .name("Carrera")
+                .software("express").ecosystem("npm").version("4.18.2")
+                .assetId(9L)
+                .build();
+
+        when(softwareComponentMapper.toEntity(dto)).thenReturn(new SoftwareComponent());
+        when(assetRepository.findById(9L)).thenReturn(Optional.of(Asset.builder().id(9L).build()));
+        when(softwareComponentRepository.findByAsset_IdAndSoftwareAndEcosystemAndVersionAndDeletedAtIsNull(
+                9L, "express", "npm", "4.18.2")).thenReturn(Optional.empty()); // pasa el chequeo...
+        when(softwareComponentRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("unique_component_per_asset"));
 
         org.junit.jupiter.api.Assertions.assertThrows(
                 com.gef.gefsecureapp.exception.ConflictException.class,
@@ -241,6 +295,39 @@ class SoftwareComponentServiceTest {
 
         assertThatThrownBy(() -> softwareComponentService.findById(200L))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ── ECO-CATALOGO (docs/20-08-26/AUDITORIA_END_TO_END_2.md) ─────────────────────
+
+    @Test
+    @DisplayName("create() rechaza un ecosystem que no existe en el catalogo administrable")
+    void create_should_throwInvalidEcosystem_when_ecosystemNotInCatalog() {
+        SoftwareComponentDTO.Request dto = SoftwareComponentDTO.Request.builder()
+                .name("PostgreSQL Database")
+                .software("postgres").ecosystem("docker").version("15")
+                .assetId(9L)
+                .build();
+        when(ecosystemRepository.existsByNameIgnoreCase("docker")).thenReturn(false);
+
+        assertThatThrownBy(() -> softwareComponentService.create(dto))
+                .isInstanceOf(InvalidEcosystemException.class);
+
+        verifyNoInteractions(softwareComponentRepository);
+    }
+
+    @Test
+    @DisplayName("update() tambien rechaza un ecosystem que no existe en el catalogo administrable")
+    void update_should_throwInvalidEcosystem_when_ecosystemNotInCatalog() {
+        SoftwareComponentDTO.Request dto = SoftwareComponentDTO.Request.builder()
+                .name("triton-vm").software("triton-vm").ecosystem("rust").version("0.42.0")
+                .assetId(9L)
+                .build();
+        when(ecosystemRepository.existsByNameIgnoreCase("rust")).thenReturn(false);
+
+        assertThatThrownBy(() -> softwareComponentService.update(5L, dto))
+                .isInstanceOf(InvalidEcosystemException.class);
+
+        verifyNoInteractions(softwareComponentRepository);
     }
 
     @Test

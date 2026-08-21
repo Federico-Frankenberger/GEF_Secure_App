@@ -1,5 +1,6 @@
 package com.gef.gefsecureapp.dto;
 
+import com.gef.gefsecureapp.validation.ValidSoftwareCoordinate;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -8,6 +9,10 @@ import java.time.LocalDateTime;
 
 public class SoftwareComponentDTO {
 
+    // Fase 3 (docs/20-08-26/AUDITORIA_END_TO_END_2.md): sin esto, el alta manual aceptaba
+    // "spring-boot-starter-web" como si fuera una coordenada Maven valida -- nunca matchea
+    // contra GitHub Advisory, que exige "groupId:artifactId". Ver ValidSoftwareCoordinate.
+    @ValidSoftwareCoordinate
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
     public static class Request {
         @NotBlank(message = "El nombre es requerido")

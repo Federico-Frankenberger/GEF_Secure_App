@@ -139,6 +139,92 @@
     },
     {
       "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "d4e8f1a2-6b3c-4d95-8e7f-1a2b3c4d5e6f",
+                    "leftValue": "={{ $json.error }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "empty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "e5f9a2b3-7c4d-4ea6-9f8a-2b3c4d5e6f70",
+                    "leftValue": "={{ $json.error }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -188,
+        -220
+      ],
+      "id": "b1e4f2a8-3c7d-4e91-9a5f-1d6c8e2b4a90",
+      "name": "Check_Advisory_Fetch_Error"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.system_errors (node_name, error_message, workflow_id, execution_id) VALUES ('Fetch_GitHub_Advisories', '{{ ($json.error || \"error desconocido al consultar GitHub Advisory\").toString().replace(/'/g, \"''\").substring(0, 500) }}', '{{ $workflow.id }}', '{{ $execution.id }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -188,
+        -80
+      ],
+      "id": "c2f5a3b9-4d8e-4f02-8b6a-2e7d9f3c5b01",
+      "name": "Log_Advisory_Fetch_Error",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "FMvuIfdZ5LTQUpbK",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
         "fieldToSplitOut": "vulnerabilities",
         "include": "selectedOtherFields",
         "fieldsToInclude": " ghsa_id,cve_id, cvss_severities",
@@ -193,7 +279,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT \n    sc.id, \n    COALESCE(a.name, sc.name) AS asset_name, \n    sc.software, \n    sc.ecosystem, \n    sc.version, \n    e.name AS env_name, \n    e.business_criticality AS env_criticality\nFROM software_components sc\nLEFT JOIN assets a ON sc.asset_id = a.id\nJOIN environments e ON a.environment_id = e.id\nWHERE LOWER(TRIM(sc.software)) = LOWER(TRIM('{{ $json.vulnerabilities.package.name }}'))\n  AND LOWER(TRIM(sc.ecosystem)) = LOWER(TRIM('{{ $json.vulnerabilities.package.ecosystem }}'))\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_entorno }}' = 'TODOS' \n      OR e.name = '{{ $(\"Edit Fields\").first().json.filtro_entorno }}'\n  )\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_activo }}' = 'TODOS' \n      OR a.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n      OR sc.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n  ); ",
+        "query": "SELECT \n    sc.id, \n    COALESCE(a.name, sc.name) AS asset_name, \n    sc.software, \n    sc.ecosystem, \n    sc.version, \n    e.name AS env_name, \n    e.business_criticality AS env_criticality\nFROM software_components sc\nLEFT JOIN assets a ON sc.asset_id = a.id\nJOIN environments e ON a.environment_id = e.id\nWHERE sc.deleted_at IS NULL\n  AND a.deleted_at IS NULL\n  AND LOWER(TRIM(sc.software)) = LOWER(TRIM('{{ $json.vulnerabilities.package.name }}'))\n  AND LOWER(TRIM(sc.ecosystem)) = LOWER(TRIM('{{ $json.vulnerabilities.package.ecosystem }}'))\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_entorno }}' = 'TODOS' \n      OR e.name = '{{ $(\"Edit Fields\").first().json.filtro_entorno }}'\n  )\n  AND (\n      '{{ $(\"Edit Fields\").first().json.filtro_activo }}' = 'TODOS' \n      OR a.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n      OR sc.name = '{{ $(\"Edit Fields\").first().json.filtro_activo }}'\n  ); ",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -416,7 +502,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.vulnerabilities_audit \n(\n    detected_at, \n    asset_id,\n    scan_id,\n    cve_id, \n    ghsa_id, \n    cvss, \n    exploited, \n    priority, \n    assigned_to, \n    status,\n    patched_version,\n    is_zero_day\n) \nVALUES (\n    NOW(), \n    {{ $json.id || $json.asset_id || 0 }}, -- Intenta con 'id', si no 'asset_id', y si no pone 0 para que no sea undefined\n    {{ $(\"Edit Fields\").first().json.scan_id ? $(\"Edit Fields\").first().json.scan_id : 'NULL' }},\n    '{{ $json.cve_id || \"N/A\" }}', \n    '{{ $json.ghsa_id }}', \n    '{{ $json.cvss }}', \n    {{ $json.is_cisa_kev ? 'TRUE' : 'FALSE' }}, \n    '{{ $json.priority }}', \n    'SIN_ASIGNAR', \n    'DETECTADA',\n    {{ $json.patch_version && $json.patch_version !== 'N/A' ? `'${$json.patch_version.replace(/'/g, \"''\")}'` : 'NULL' }}, -- NULL en vez de 'N/A' -- el frontend distingue \"sin parche\" via is_zero_day, no parseando texto\n    {{ $json.is_zero_day ? 'TRUE' : 'FALSE' }}\n);",
+        "query": "INSERT INTO public.vulnerabilities_audit \n(\n    detected_at, \n    asset_id,\n    scan_id,\n    cve_id, \n    ghsa_id, \n    cvss, \n    exploited, \n    priority, \n    assigned_to, \n    status,\n    patched_version,\n    is_zero_day,\n    software,\n    ecosystem,\n    version\n) \nVALUES (\n    NOW(), \n    {{ $json.id || $json.asset_id || 0 }}, -- Intenta con 'id', si no 'asset_id', y si no pone 0 para que no sea undefined\n    {{ $(\"Edit Fields\").first().json.scan_id ? $(\"Edit Fields\").first().json.scan_id : 'NULL' }},\n    '{{ $json.cve_id || \"N/A\" }}', \n    '{{ $json.ghsa_id }}', \n    '{{ $json.cvss }}', \n    {{ $json.is_cisa_kev ? 'TRUE' : 'FALSE' }}, \n    '{{ $json.priority }}', \n    'SIN_ASIGNAR', \n    'DETECTADA',\n    {{ $json.patch_version && $json.patch_version !== 'N/A' ? `'${$json.patch_version.replace(/'/g, \"''\")}'` : 'NULL' }}, -- NULL en vez de 'N/A' -- el frontend distingue \"sin parche\" via is_zero_day, no parseando texto\n    {{ $json.is_zero_day ? 'TRUE' : 'FALSE' }},\n    {{ $json.software ? `'${$json.software.replace(/'/g, \"''\")}'` : 'NULL' }}, -- A-NUEVO-1 (docs/20-08-26/AUDITORIA_END_TO_END_2.md): snapshot de que estaba instalado al detectar, para que el historial no se reescriba si el componente cambia despues\n    {{ $json.ecosystem ? `'${$json.ecosystem.replace(/'/g, \"''\")}'` : 'NULL' }},\n    {{ $json.version_instalada ? `'${$json.version_instalada.replace(/'/g, \"''\")}'` : 'NULL' }}\n);",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -560,7 +646,9 @@
       }
     },
     {
-      "parameters": {},
+      "parameters": {
+        "numberInputs": 3
+      },
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
@@ -572,7 +660,20 @@
     },
     {
       "parameters": {
-        "jsCode": "const allItems = items;\n\nlet metrics = {\n    total_items: allItems.length,\n    auditados: 0,\n    ignorados: 0,\n    criticos: 0,\n    altas: 0,\n    medias: 0,\n    bajas: 0\n};\n\n// Objeto para agrupar las estadísticas por entorno\nlet stats_por_entorno = {};\n\nfor (const item of allItems) {\n    const data = item.json;\n\n    // Detectamos la prioridad (soporta varias fuentes de nombre)\n    const rawPriority = data.priority || data.Priority || data.criticality || null;\n    // Detectamos el entorno\n    const envName = data.environment || data.env_name || \"DESCONOCIDO\";\n\n    // Si encontramos una prioridad, el ítem fue analizado por el motor de riesgo\n    if (rawPriority !== null) {\n        metrics.auditados++;\n        const sev = rawPriority.toString().toUpperCase();\n        \n        // 1. Inicializar el entorno en el objeto si no existe\n        if (!stats_por_entorno[envName]) {\n            stats_por_entorno[envName] = { \n                criticos: 0, \n                altas: 0, \n                medias: 0, \n                bajas: 0, \n                total: 0 \n            };\n        }\n\n        // 2. Sumar al contador del entorno específico\n        stats_por_entorno[envName].total++;\n\n        // 3. Clasificar por severidad (Global y por Entorno)\n        if (sev === 'CRITICAL') {\n            metrics.criticos++;\n            stats_por_entorno[envName].criticos++;\n        } \n        else if (sev === 'HIGH') {\n            metrics.altas++;\n            stats_por_entorno[envName].altas++;\n        } \n        else if (sev === 'MEDIUM') {\n            metrics.medias++;\n            stats_por_entorno[envName].medias++;\n        } \n        else if (sev === 'LOW') {\n            metrics.bajas++;\n            stats_por_entorno[envName].bajas++;\n        }\n    } \n    // Si no tiene prioridad, es porque fue filtrado/ignorado antes del motor de riesgo\n    else {\n        metrics.ignorados++;\n    }\n}\n\nreturn [{\n    json: {\n        ejecucion_stats: {\n            resumen: `Análisis finalizado: ${metrics.total_items} registros evaluados.`,\n            detalle: metrics,\n            entornos: stats_por_entorno,\n            status_sistema: metrics.criticos > 0 ? \"⚠️ ACCIÓN REQUERIDA\" : \"✅ ESTABLE\",\n            fecha: new Date().toLocaleString('es-AR')\n        }\n    }\n}];"
+        "jsCode": "// N8N-02 (docs/20-08-26/AUDITORIA_END_TO_END_2.md): antes un item con error de\n// Fetch_GitHub_Advisories se logueaba en system_errors (Log_Advisory_Fetch_Error) y ahi\n// se perdia -- nunca llegaba a Compute_Audit_Metrics, asi que un rate-limit total de\n// GitHub no dejaba ningun rastro en las metricas del propio ScanReport, que terminaba\n// reportando \"ESTABLE\" con 0 vulnerabilidades como si el escaneo hubiera evaluado todo\n// y no hubiera encontrado nada. Este nodo marca el item para que Compute_Audit_Metrics\n// lo cuente como \"no evaluado\", distinto de \"sin hallazgos\".\nreturn items.map(item => ({\n    json: {\n        ...item.json,\n        advisory_fetch_error: true\n    }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -400
+      ],
+      "id": "a3d7e6c1-2f48-4b9a-9c3e-6d8f0b1a5e2d",
+      "name": "Mark_Advisory_Fetch_Error"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = items;\n\nlet metrics = {\n    total_items: allItems.length,\n    auditados: 0,\n    ignorados: 0,\n    no_evaluados: 0,\n    criticos: 0,\n    altas: 0,\n    medias: 0,\n    bajas: 0\n};\n\n// Objeto para agrupar las estadisticas por entorno\nlet stats_por_entorno = {};\n\nfor (const item of allItems) {\n    const data = item.json;\n\n    // N8N-02 (docs/20-08-26/AUDITORIA_END_TO_END_2.md): un item marcado por\n    // Mark_Advisory_Fetch_Error nunca llego a evaluarse contra GitHub Advisory -- no es\n    // \"sin vulnerabilidades\" (ignorado), es \"no se pudo evaluar\". Contarlo como ignorado\n    // hacia que un rate-limit total de GitHub reportara ESTABLE en vez de avisar que\n    // el escaneo quedo incompleto.\n    if (data.advisory_fetch_error === true) {\n        metrics.no_evaluados++;\n        continue;\n    }\n\n    // Detectamos la prioridad (soporta varias fuentes de nombre)\n    const rawPriority = data.priority || data.Priority || data.criticality || null;\n    // Detectamos el entorno\n    const envName = data.environment || data.env_name || \"DESCONOCIDO\";\n\n    // Si encontramos una prioridad, el item fue analizado por el motor de riesgo\n    if (rawPriority !== null) {\n        metrics.auditados++;\n        const sev = rawPriority.toString().toUpperCase();\n        \n        // 1. Inicializar el entorno en el objeto si no existe\n        if (!stats_por_entorno[envName]) {\n            stats_por_entorno[envName] = { \n                criticos: 0, \n                altas: 0, \n                medias: 0, \n                bajas: 0, \n                total: 0 \n            };\n        }\n\n        // 2. Sumar al contador del entorno especifico\n        stats_por_entorno[envName].total++;\n\n        // 3. Clasificar por severidad (Global y por Entorno)\n        if (sev === 'CRITICAL') {\n            metrics.criticos++;\n            stats_por_entorno[envName].criticos++;\n        } \n        else if (sev === 'HIGH') {\n            metrics.altas++;\n            stats_por_entorno[envName].altas++;\n        } \n        else if (sev === 'MEDIUM') {\n            metrics.medias++;\n            stats_por_entorno[envName].medias++;\n        } \n        else if (sev === 'LOW') {\n            metrics.bajas++;\n            stats_por_entorno[envName].bajas++;\n        }\n    } \n    // Si no tiene prioridad, es porque fue filtrado/ignorado antes del motor de riesgo\n    else {\n        metrics.ignorados++;\n    }\n}\n\n// N8N-02: un escaneo con paquetes no evaluados por una falla de GitHub Advisory nunca\n// deberia reportarse como estable -- aunque no haya criticos, el resultado es incompleto.\nlet status_sistema;\nif (metrics.criticos > 0) status_sistema = \"\\u26a0\\ufe0f ACCI\\u00d3N REQUERIDA\";\nelse if (metrics.no_evaluados > 0) status_sistema = \"\\u26a0\\ufe0f PARCIAL (GitHub Advisory fall\\u00f3)\";\nelse status_sistema = \"\\u2705 ESTABLE\";\n\nconst resumenBase = `An\\u00e1lisis finalizado: ${metrics.total_items} registros evaluados.`;\nconst resumen = metrics.no_evaluados > 0\n    ? `${resumenBase} ${metrics.no_evaluados} paquete(s) no se pudieron evaluar por un error al consultar GitHub Advisory (ver system_errors).`\n    : resumenBase;\n\nreturn [{\n    json: {\n        ejecucion_stats: {\n            resumen,\n            detalle: metrics,\n            entornos: stats_por_entorno,\n            status_sistema,\n            fecha: new Date().toLocaleString('es-AR')\n        }\n    }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1195,9 +1296,43 @@
       "main": [
         [
           {
+            "node": "Check_Advisory_Fetch_Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check_Advisory_Fetch_Error": {
+      "main": [
+        [
+          {
             "node": "Extract_Advisory_Items",
             "type": "main",
             "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log_Advisory_Fetch_Error",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mark_Advisory_Fetch_Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark_Advisory_Fetch_Error": {
+      "main": [
+        [
+          {
+            "node": "Consolidate_Audit_Results",
+            "type": "main",
+            "index": 2
           }
         ]
       ]

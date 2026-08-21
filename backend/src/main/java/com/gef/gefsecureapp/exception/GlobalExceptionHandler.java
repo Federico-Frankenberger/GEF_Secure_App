@@ -1,12 +1,14 @@
 package com.gef.gefsecureapp.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -57,11 +59,36 @@ public class GlobalExceptionHandler {
                 .body(new ErrorBody(400, ex.getMessage()));
     }
 
+    @ExceptionHandler(InvalidEcosystemException.class)
+    public ResponseEntity<ErrorBody> handleInvalidEcosystem(InvalidEcosystemException ex) {
+        log.warn("Ecosistema invalido: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorBody(400, ex.getMessage()));
+    }
+
     @ExceptionHandler(N8nUnavailableException.class)
     public ResponseEntity<ErrorBody> handleN8nUnavailable(N8nUnavailableException ex) {
         log.error("n8n no respondió: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(new ErrorBody(502, ex.getMessage()));
+    }
+
+    // C6 (docs/20-08-26/AUDITORIA_END_TO_END.md): sin esto, una violacion de constraint
+    // (ej. dos requests casi simultaneas creando el mismo componente, DB-05) caia en el
+    // catch-all de mas abajo, que devolvia ex.getMessage() crudo -- nombres de tabla,
+    // columna y constraint de Postgres expuestos directo al cliente.
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorBody> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("Violación de integridad de datos: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorBody(409, "El registro ya existe o viola una regla de integridad"));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorBody> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        log.warn("Archivo subido supera el tamaño máximo permitido: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(new ErrorBody(413, "El archivo supera el tamaño máximo permitido"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -75,11 +102,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(body);
     }
 
+    // C6: el detalle completo va al log server-side (ex, con stack trace); el cliente
+    // solo recibe un mensaje generico -- antes ex.getMessage() se devolvia crudo en el
+    // body, exponiendo nombres de tabla/columna/constraint u otros detalles internos
+    // ante cualquier excepcion no mapeada explicitamente.
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorBody> handleGeneric(Exception ex, WebRequest request) {
         log.error("Error inesperado: {}", ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorBody(500, "Error interno: " + ex.getMessage()));
+                .body(new ErrorBody(500, "Error interno del servidor"));
     }
 
     public static class ErrorBody {

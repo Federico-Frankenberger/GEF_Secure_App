@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { scanApi } from '../services/api'
 import type { ScanTargetType } from '../types'
 
@@ -56,6 +56,16 @@ export function useScanPolling() {
     }
     timerRef.current = window.setTimeout(poll, POLL_INTERVAL_MS)
   }, [stop])
+
+  // FE-01 (docs/20-08-26/AUDITORIA_END_TO_END.md): sin esto, si el componente que llamó
+  // a start() se desmonta (el usuario navega a otra página) mientras el polling sigue
+  // corriendo, el setTimeout seguía disparando poll() en memoria y llamando a
+  // onDone/onTimeout sobre estado de un componente ya desmontado.
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current)
+    }
+  }, [])
 
   return { state, start, stop }
 }

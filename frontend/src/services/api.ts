@@ -46,6 +46,11 @@ http.interceptors.response.use(
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem('gef_user')
       if (!window.location.pathname.startsWith('/login')) {
+        // FE-02 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes el usuario era expulsado
+        // a /login sin ninguna explicación -- indistinguible de haber navegado ahí solo.
+        // sessionStorage (no localStorage) porque es una bandera de un solo uso para el
+        // próximo render de Login, no algo que deba persistir entre sesiones.
+        sessionStorage.setItem('gef_session_expired', '1')
         window.location.href = '/login'
       }
     }
@@ -209,9 +214,16 @@ export const ghsaAdvisoryApi = {
 }
 
 // ── Informes (exportación de PDFs) ────────────────────────────────────────────
+// FE-03 (docs/20-08-26/AUDITORIA_END_TO_END.md): el timeout global de 10s de `http`
+// alcanza para el resto de la API, pero un PDF pesado (resumen ejecutivo, comparativo
+// con muchos hallazgos) puede tardar más -- sin esto, la descarga fallaba con un
+// "Error de red" genérico que en realidad era el cliente cortando una respuesta lenta
+// pero válida.
+const REPORT_TIMEOUT_MS = 30_000
+
 export const reportApi = {
-  scan:       (scanId: number)                    => http.get<Blob>(`/reports/scan/${scanId}`, { responseType: 'blob' }),
-  comparison: (scanAId: number, scanBId: number)   => http.get<Blob>('/reports/comparison', { params: { scanAId, scanBId }, responseType: 'blob' }),
-  executive:  ()                                   => http.get<Blob>('/reports/executive', { responseType: 'blob' }),
-  cve:        (identifier: string)                 => http.get<Blob>(`/reports/cve/${encodeURIComponent(identifier)}`, { responseType: 'blob' }),
+  scan:       (scanId: number)                    => http.get<Blob>(`/reports/scan/${scanId}`, { responseType: 'blob', timeout: REPORT_TIMEOUT_MS }),
+  comparison: (scanAId: number, scanBId: number)   => http.get<Blob>('/reports/comparison', { params: { scanAId, scanBId }, responseType: 'blob', timeout: REPORT_TIMEOUT_MS }),
+  executive:  ()                                   => http.get<Blob>('/reports/executive', { responseType: 'blob', timeout: REPORT_TIMEOUT_MS }),
+  cve:        (identifier: string)                 => http.get<Blob>(`/reports/cve/${encodeURIComponent(identifier)}`, { responseType: 'blob', timeout: REPORT_TIMEOUT_MS }),
 }

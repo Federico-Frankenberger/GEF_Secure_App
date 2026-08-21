@@ -5,6 +5,7 @@ import com.gef.gefsecureapp.model.AssetType;
 import com.gef.gefsecureapp.repository.AssetTypeRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,14 +30,14 @@ public class AssetTypeController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<AssetType> create(@RequestBody AssetType dto) {
+    public ResponseEntity<AssetType> create(@Valid @RequestBody AssetType dto) {
         dto.setId(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(dto));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<AssetType> update(@PathVariable Long id, @RequestBody AssetType dto) {
+    public ResponseEntity<AssetType> update(@PathVariable Long id, @Valid @RequestBody AssetType dto) {
         AssetType existing = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("AssetType", id));
         existing.setName(dto.getName());

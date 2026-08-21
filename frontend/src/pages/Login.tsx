@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react'
+import { useEffect, useState, FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ShieldCheck, Wrench, ShieldAlert, Server, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -28,6 +28,16 @@ export default function Login() {
     const from = (location.state as { from?: string } | null)?.from ?? '/dashboard'
     navigate(from, { replace: true })
   }
+
+  // FE-02 (docs/20-08-26/AUDITORIA_END_TO_END.md): bandera de un solo uso seteada por
+  // el interceptor de api.ts cuando un 401 expulsa al usuario en medio de una acción --
+  // antes no había ningún aviso, era indistinguible de haber navegado a /login solo.
+  useEffect(() => {
+    if (sessionStorage.getItem('gef_session_expired')) {
+      sessionStorage.removeItem('gef_session_expired')
+      toast.error('Tu sesión expiró. Iniciá sesión nuevamente.')
+    }
+  }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

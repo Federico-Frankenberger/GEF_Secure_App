@@ -5,6 +5,7 @@ import com.gef.gefsecureapp.model.Ecosystem;
 import com.gef.gefsecureapp.repository.EcosystemRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,14 +30,14 @@ public class EcosystemController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Ecosystem> create(@RequestBody Ecosystem dto) {
+    public ResponseEntity<Ecosystem> create(@Valid @RequestBody Ecosystem dto) {
         dto.setId(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(dto));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Ecosystem> update(@PathVariable Long id, @RequestBody Ecosystem dto) {
+    public ResponseEntity<Ecosystem> update(@PathVariable Long id, @Valid @RequestBody Ecosystem dto) {
         Ecosystem existing = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Ecosystem", id));
         existing.setName(dto.getName());

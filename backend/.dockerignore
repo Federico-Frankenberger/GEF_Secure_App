@@ -1,0 +1,9 @@
+# DOCKER-03 (docs/20-08-26/AUDITORIA_END_TO_END.md): el Dockerfile de backend ya es
+# selectivo con sus COPY (no usa "COPY . ."), así que el riesgo real acá era menor que en
+# el de frontend -- igual evita mandar la caché de Gradle y el build previo al daemon.
+.gradle
+build
+.git
+*.log
+.env
+.env.local

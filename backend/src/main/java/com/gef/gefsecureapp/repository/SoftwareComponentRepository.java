@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,8 +33,11 @@ public interface SoftwareComponentRepository extends JpaRepository<SoftwareCompo
             """)
     List<SoftwareComponent> searchActive(@Param("query") String query);
 
-    Optional<SoftwareComponent> findBySoftwareAndVersionAndAsset_Environment_IdAndDeletedAtIsNull(
-            String software, String version, Long environmentId);
+    // DB-05 (docs/20-08-26/AUDITORIA_END_TO_END.md): reemplaza a la variante por-entorno
+    // (colisionaba entre activos distintos del mismo entorno) -- mismo criterio que el
+    // UNIQUE real de la base (init/16-unique-component-per-asset.sql).
+    Optional<SoftwareComponent> findByAsset_IdAndSoftwareAndEcosystemAndVersionAndDeletedAtIsNull(
+            Long assetId, String software, String ecosystem, String version);
 
     /** Clave de upsert para la importacion de inventario (SBOM): un mismo software+ecosistema
      *  no deberia repetirse dos veces dentro del mismo activo. */
@@ -47,4 +51,9 @@ public interface SoftwareComponentRepository extends JpaRepository<SoftwareCompo
     List<SoftwareComponent> findByAsset_IdAndDeletedAt(Long assetId, LocalDateTime deletedAt);
 
     long countByAsset_IdAndDeletedAt(Long assetId, LocalDateTime deletedAt);
+
+    // C3 (docs/20-08-26/AUDITORIA_END_TO_END.md): variante scopeada del count() sin filtrar
+    // usado por DashboardService para ASSET_OWNER -- mismo criterio que el resto del scope
+    // (no filtra deletedAt, igual que el count() unscoped que reemplaza).
+    long countByAsset_IdIn(Collection<Long> assetIds);
 }

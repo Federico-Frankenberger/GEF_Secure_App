@@ -21,6 +21,19 @@ const CRITICALITY_BADGE: Record<string, string> = {
   'LOW':      'bg-[#44a024]/15 text-[#44a024] border border-[#44a024]/30',
 }
 
+// FE-09 (docs/20-08-26/AUDITORIA_END_TO_END.md): formato exacto que espera GitHub
+// Advisory por ecosistema en modo texto libre (ver informe §4/§14, normalización).
+const ECOSYSTEM_FORMAT_HINT: Record<string, string> = {
+  maven: 'Maven: coordenada completa groupId:artifactId (ej: org.springframework.boot:spring-boot-starter-web), no solo el artifactId.',
+  npm: 'npm: nombre del paquete tal cual figura en el registro (ej: @scope/paquete si es scoped).',
+  pip: 'pip: nombre normalizado del paquete de PyPI (guiones, no guiones bajos).',
+  composer: 'Composer: vendor/paquete (ej: contao/contao).',
+  nuget: 'NuGet: nombre del paquete tal cual figura en nuget.org.',
+  cargo: 'Cargo: nombre del crate tal cual figura en crates.io.',
+  go: 'Go: ruta del módulo completa (ej: github.com/org/repo).',
+  rubygems: 'RubyGems: nombre del gem tal cual figura en rubygems.org.',
+}
+
 const INVENTORY_STATUS_BADGE: Record<InventoryItemStatus, string> = {
   NUEVO:         'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30',
   ACTUALIZADO:   'bg-amber-600/20 text-amber-400 border border-amber-600/30',
@@ -229,7 +242,19 @@ export default function Assets() {
     setInventoryPreview(null)
   }
 
+  // FE-08 (docs/20-08-26/AUDITORIA_END_TO_END.md): mismo límite que
+  // `spring.servlet.multipart.max-file-size` (backend/application.properties) -- antes el
+  // usuario descubría un SBOM demasiado grande recién al chocar contra un 413 después de
+  // subirlo entero.
+  const MAX_INVENTORY_FILE_BYTES = 15 * 1024 * 1024
+
   const handleInventoryFileChange = (file: File | null) => {
+    if (file && file.size > MAX_INVENTORY_FILE_BYTES) {
+      toast.error('El archivo supera el tamaño máximo permitido (15 MB)')
+      setInventoryFile(null)
+      setInventoryPreview(null)
+      return
+    }
     setInventoryFile(file)
     setInventoryPreview(null)
   }
@@ -324,6 +349,12 @@ export default function Assets() {
   }
 
   const handleScan = async (component: SoftwareComponent) => {
+    // FE-06 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes `setScanning(null)` corria en
+    // el `finally`, es decir apenas resolvia el POST inicial -- el boton se rehabilitaba
+    // mucho antes de que el escaneo (asincrono, hasta 30s) terminara, permitiendo disparar
+    // un segundo escaneo real del mismo componente mientras el primero seguia corriendo.
+    // Ahora `scanning` se mantiene hasta que el polling termina de verdad (completo,
+    // timeout, o el POST inicial fallo).
     setScanning(component.id)
     try {
       await softwareComponentApi.triggerScan(component.id)
@@ -331,12 +362,13 @@ export default function Assets() {
       startPolling('ACTIVO', component.name, () => {
         toast.success(`Escaneo de "${component.name}" completo`)
         loadComponents()
+        setScanning(null)
       }, () => {
         toast.error(`El escaneo de "${component.name}" no respondió a tiempo. Puede seguir corriendo en segundo plano; revisá el Centro de Escaneos más tarde.`)
+        setScanning(null)
       })
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al disparar el escaneo')
-    } finally {
       setScanning(null)
     }
   }
@@ -639,7 +671,10 @@ export default function Assets() {
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setAssetModal(false)} className="btn-ghost">Cancelar</button>
-            <button onClick={handleSaveAsset} disabled={savingAsset} className="btn-primary">{savingAsset ? 'Guardando…' : 'Guardar'}</button>
+            {/* FE-07 (docs/20-08-26/AUDITORIA_END_TO_END.md): único formulario de la app
+                que no validaba su campo requerido antes de este fix -- se podía crear un
+                activo con "Nombre" vacío pese al asterisco que lo marca como obligatorio. */}
+            <button onClick={handleSaveAsset} disabled={savingAsset || !assetForm.name.trim()} className="btn-primary">{savingAsset ? 'Guardando…' : 'Guardar'}</button>
           </div>
         </div>
       </Modal>
@@ -655,7 +690,16 @@ export default function Assets() {
             <div>
               <label className="block text-xs text-slate-400 mb-1">Software *</label>
               {catalogFallback ? (
-                <input className="input" value={compForm.software} onChange={e => fComp('software', e.target.value)} placeholder="ej: lodash" />
+                <>
+                  <input className="input" value={compForm.software} onChange={e => fComp('software', e.target.value)} placeholder="ej: lodash" />
+                  {/* FE-09 (docs/20-08-26/AUDITORIA_END_TO_END.md): en modo texto libre nada
+                      orientaba hacia la coordenada exacta que espera GitHub Advisory por
+                      ecosistema -- ya causó un falso negativo real (componente cargado como
+                      "spring-boot-starter-web" en vez de la coordenada Maven completa). */}
+                  {ECOSYSTEM_FORMAT_HINT[compForm.ecosystem] && (
+                    <p className="text-[11px] text-slate-500 mt-1">{ECOSYSTEM_FORMAT_HINT[compForm.ecosystem]}</p>
+                  )}
+                </>
               ) : (
                 <SoftwareAutocomplete
                   value={compForm.software}

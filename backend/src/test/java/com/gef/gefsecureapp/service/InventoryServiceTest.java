@@ -127,6 +127,58 @@ class InventoryServiceTest {
         verify(softwareComponentService, never()).update(any(), any());
     }
 
+    private MultipartFile cycloneDxWithDuplicatePurl(String versionA, String versionB) {
+        String json = """
+                {
+                  "components": [
+                    {
+                      "type": "library",
+                      "name": "spring-boot-starter-web",
+                      "version": "%s",
+                      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-web@%s"
+                    },
+                    {
+                      "type": "library",
+                      "name": "spring-boot-starter-web",
+                      "version": "%s",
+                      "purl": "pkg:maven/org.springframework.boot/spring-boot-starter-web@%s"
+                    }
+                  ]
+                }
+                """.formatted(versionA, versionA, versionB, versionB);
+        return new MockMultipartFile("file", "sbom.json", "application/json", json.getBytes());
+    }
+
+    @Test
+    @DisplayName("M5: preview() detecta un purl repetido con la misma version dentro del mismo SBOM como SIN_CAMBIOS, no como dos NUEVOs")
+    void preview_should_dedupe_repeatedPurl_sameVersion() {
+        when(assetService.findById(1L)).thenReturn(AssetDTO.Response.builder().id(1L).build());
+        when(softwareComponentRepository.findByAsset_IdAndSoftwareAndEcosystemAndDeletedAtIsNull(
+                eq(1L), eq("org.springframework.boot:spring-boot-starter-web"), eq("maven")))
+                .thenReturn(Optional.empty());
+
+        InventoryDTO.Summary summary = inventoryService().preview(1L, cycloneDxWithDuplicatePurl("3.1.0", "3.1.0"));
+
+        assertThat(summary.getTotal()).isEqualTo(2);
+        assertThat(summary.getNuevos()).isEqualTo(1);
+        assertThat(summary.getSinCambios()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("M5: preview() detecta un purl repetido con distinta version dentro del mismo SBOM como ACTUALIZADO, no como dos NUEVOs")
+    void preview_should_dedupe_repeatedPurl_differentVersion() {
+        when(assetService.findById(1L)).thenReturn(AssetDTO.Response.builder().id(1L).build());
+        when(softwareComponentRepository.findByAsset_IdAndSoftwareAndEcosystemAndDeletedAtIsNull(
+                eq(1L), eq("org.springframework.boot:spring-boot-starter-web"), eq("maven")))
+                .thenReturn(Optional.empty());
+
+        InventoryDTO.Summary summary = inventoryService().preview(1L, cycloneDxWithDuplicatePurl("3.1.0", "3.2.0"));
+
+        assertThat(summary.getTotal()).isEqualTo(2);
+        assertThat(summary.getNuevos()).isEqualTo(1);
+        assertThat(summary.getActualizados()).isEqualTo(1);
+    }
+
     @Test
     @DisplayName("preview() rechaza un archivo vacio con InvalidInventoryFileException")
     void preview_should_reject_emptyFile() {

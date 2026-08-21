@@ -1,5 +1,6 @@
 package com.gef.gefsecureapp.service;
 
+import com.gef.gefsecureapp.exception.ConflictException;
 import com.gef.gefsecureapp.exception.ResourceNotFoundException;
 import com.gef.gefsecureapp.model.Asset;
 import com.gef.gefsecureapp.model.Environment;
@@ -131,6 +132,38 @@ class ScanServiceTest {
         verify(environmentRepository, never()).findById(any());
     }
 
+    // ── A-NUEVO-2 (docs/20-08-26/AUDITORIA_END_TO_END_2.md) ────────────────────────
+
+    @Test
+    @DisplayName("start() rechaza un segundo disparo sobre el mismo target mientras el primero sigue RUNNING")
+    void start_should_rejectSecondTrigger_when_sameTargetAlreadyRunning() {
+        TestAuth.loginAs(7L, "fede.frankenberger", "ADMIN");
+        when(scanReportRepository.existsByTargetTypeAndTargetNameAndStatus("ACTIVO", "axios", "RUNNING"))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> scanService.start("ACTIVO", "axios", 5L, null, null))
+                .isInstanceOf(ConflictException.class);
+
+        verifyNoInteractions(userRepository, softwareComponentRepository);
+        verify(scanReportRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("start() permite un nuevo disparo si el RUNNING previo del mismo target ya no existe")
+    void start_should_allowTrigger_when_noRunningScan_forSameTarget() {
+        TestAuth.loginAs(7L, "fede.frankenberger", "ADMIN");
+        when(scanReportRepository.existsByTargetTypeAndTargetNameAndStatus("ACTIVO", "axios", "RUNNING"))
+                .thenReturn(false);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(User.builder().id(7L).build()));
+        when(scanReportRepository.save(any(ScanReport.class))).thenAnswer(inv -> {
+            ScanReport s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(1L);
+            return s;
+        });
+
+        assertThat(scanService.start("ACTIVO", "axios", null, null, null).getStatus()).isEqualTo("RUNNING");
+    }
+
     @Test
     @DisplayName("complete() actualiza el Scan a COMPLETED con las metricas reportadas por n8n")
     void complete_should_updateScan_toCompletedWithMetrics() {
@@ -147,6 +180,22 @@ class ScanServiceTest {
         assertThat(result.getCriticals()).isEqualTo(1);
         assertThat(result.getSystemStatus()).isEqualTo("✅ ESTABLE");
         verify(vulnerabilityAuditService).applyLifecycle(result);
+    }
+
+    @Test
+    @DisplayName("M-NUEVO-2: complete() sobre un scan ya COMPLETED (callback duplicado) es un no-op, no reprocesa applyLifecycle")
+    void complete_should_beNoOp_when_scanAlreadyCompleted() {
+        ScanReport alreadyCompleted = ScanReport.builder().id(9L).status("COMPLETED")
+                .startedAt(LocalDateTime.now()).executedAt(LocalDateTime.now()).build();
+        when(scanReportRepository.findById(9L)).thenReturn(Optional.of(alreadyCompleted));
+
+        ScanReport result = scanService.complete(9L, new ScanService.ScanCompletionPayload(
+                999, 999, 999, 999, 999, 999, 999, "distinto", "distinto", "{}"));
+
+        assertThat(result).isSameAs(alreadyCompleted);
+        assertThat(result.getTotalDetected()).isNull();
+        verify(scanReportRepository, never()).save(any());
+        verifyNoInteractions(vulnerabilityAuditService);
     }
 
     @Test

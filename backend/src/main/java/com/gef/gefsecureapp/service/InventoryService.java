@@ -5,6 +5,7 @@ import com.gef.gefsecureapp.dto.CycloneDxDTO;
 import com.gef.gefsecureapp.dto.InventoryDTO;
 import com.gef.gefsecureapp.dto.SoftwareComponentDTO;
 import com.gef.gefsecureapp.exception.ConflictException;
+import com.gef.gefsecureapp.exception.InvalidEcosystemException;
 import com.gef.gefsecureapp.exception.InvalidInventoryFileException;
 import com.gef.gefsecureapp.model.SoftwareComponent;
 import com.gef.gefsecureapp.repository.SoftwareComponentRepository;
@@ -17,7 +18,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /** Importacion de inventario de software a partir de un SBOM CycloneDX (tipicamente generado
@@ -56,6 +59,14 @@ public class InventoryService {
         List<InventoryDTO.Item> items = new ArrayList<>();
         int nuevos = 0, actualizados = 0, sinCambios = 0, noReconocidos = 0, errores = 0;
 
+        // M5 (docs/20-08-26/AUDITORIA_END_TO_END.md): en modo preview (persist=false) no se
+        // escribe nada en la base, asi que un purl repetido dentro del mismo SBOM comparaba
+        // siempre contra el mismo estado viejo de la base y aparecia N veces como "NUEVO" en
+        // vez de reflejar que ya fue visto antes en este mismo archivo. En modo persist esto
+        // no pasa: cada create()/update() ya queda visible para la siguiente iteracion dentro
+        // de la misma transaccion, asi que solo hace falta trackear el estado en preview.
+        Map<String, PurlParser.Parsed> seenInBatch = new HashMap<>();
+
         for (CycloneDxDTO.Component component : components) {
             Optional<PurlParser.Parsed> parsed = PurlParser.parse(component.purl());
             if (parsed.isEmpty()) {
@@ -71,29 +82,46 @@ public class InventoryService {
             PurlParser.Parsed p = parsed.get();
             String coordinate = p.coordinate().trim().toLowerCase();
             String ecosystem = p.ecosystem().trim().toLowerCase();
+            String batchKey = ecosystem + "|" + coordinate;
 
             Optional<SoftwareComponent> existing = softwareComponentRepository
                     .findByAsset_IdAndSoftwareAndEcosystemAndDeletedAtIsNull(assetId, coordinate, ecosystem);
 
-            if (existing.isPresent() && p.version().equals(existing.get().getVersion())) {
+            String previousVersion = existing.map(SoftwareComponent::getVersion).orElse(null);
+            if (!persist && previousVersion == null && seenInBatch.containsKey(batchKey)) {
+                previousVersion = seenInBatch.get(batchKey).version();
+            }
+
+            if (previousVersion != null && p.version().equals(previousVersion)) {
                 items.add(itemOf(p, InventoryDTO.ItemStatus.SIN_CAMBIOS, null, null));
                 sinCambios++;
+                if (!persist) seenInBatch.put(batchKey, p);
                 continue;
             }
 
-            if (existing.isPresent()) {
-                String previousVersion = existing.get().getVersion();
-                if (persist) softwareComponentService.update(existing.get().getId(), requestOf(assetId, p));
-                items.add(itemOf(p, InventoryDTO.ItemStatus.ACTUALIZADO, previousVersion, null));
-                actualizados++;
+            if (previousVersion != null) {
+                try {
+                    if (persist) softwareComponentService.update(existing.get().getId(), requestOf(assetId, p));
+                    items.add(itemOf(p, InventoryDTO.ItemStatus.ACTUALIZADO, previousVersion, null));
+                    actualizados++;
+                    if (!persist) seenInBatch.put(batchKey, p);
+                } catch (ConflictException | InvalidEcosystemException ex) {
+                    items.add(itemOf(p, InventoryDTO.ItemStatus.ERROR, null, ex.getMessage()));
+                    errores++;
+                }
                 continue;
             }
 
+            // ECO-CATALOGO (docs/20-08-26/AUDITORIA_END_TO_END_2.md): en la practica PurlParser
+            // ya solo produce ecosystems que existen en el catalogo (ver su propio comentario),
+            // asi que esto no deberia dispararse hoy -- se atrapa igual como red de seguridad
+            // ante un futuro tipo de purl agregado sin actualizar el catalogo o el mapeo.
             try {
                 if (persist) softwareComponentService.create(requestOf(assetId, p));
                 items.add(itemOf(p, InventoryDTO.ItemStatus.NUEVO, null, null));
                 nuevos++;
-            } catch (ConflictException ex) {
+                if (!persist) seenInBatch.put(batchKey, p);
+            } catch (ConflictException | InvalidEcosystemException ex) {
                 items.add(itemOf(p, InventoryDTO.ItemStatus.ERROR, null, ex.getMessage()));
                 errores++;
             }

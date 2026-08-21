@@ -1,5 +1,6 @@
 package com.gef.gefsecureapp.service;
 
+import com.gef.gefsecureapp.exception.ConflictException;
 import com.gef.gefsecureapp.exception.ResourceNotFoundException;
 import com.gef.gefsecureapp.model.Asset;
 import com.gef.gefsecureapp.model.Environment;
@@ -33,6 +34,14 @@ public class ScanService {
      *  payload del webhook y vuelve en /api/webhook/scan-report al completarse. */
     @Transactional
     public ScanReport start(String targetType, String targetName, Long softwareComponentId, Long environmentId, Long assetId) {
+        // A-NUEVO-2 (docs/20-08-26/AUDITORIA_END_TO_END_2.md): sin este chequeo, pegarle dos
+        // veces seguidas al mismo endpoint de escaneo (dos pestañas, un script, un reintento
+        // de red) creaba dos ScanReport RUNNING y disparaba dos ejecuciones de n8n en paralelo
+        // sobre el mismo target -- la misma condicion de carrera que N8N-03 mitiga con retry,
+        // pero atacada en la causa (evitar el segundo disparo) en vez de solo en el sintoma.
+        if (scanReportRepository.existsByTargetTypeAndTargetNameAndStatus(targetType, targetName, "RUNNING"))
+            throw new ConflictException("Ya hay un escaneo en curso para " + targetType + "/" + targetName);
+
         User triggeredBy = userRepository.findById(CurrentUser.get().id()).orElse(null);
         SoftwareComponent component = softwareComponentId != null
                 ? softwareComponentRepository.findById(softwareComponentId).orElse(null) : null;
@@ -70,6 +79,13 @@ public class ScanService {
     public ScanReport complete(Long scanId, ScanCompletionPayload payload) {
         ScanReport scan = scanReportRepository.findById(scanId)
                 .orElseThrow(() -> new ResourceNotFoundException("ScanReport", scanId));
+
+        // M-NUEVO-2 (docs/20-08-26/AUDITORIA_END_TO_END_2.md): sin esta guarda, una entrega
+        // duplicada del mismo callback (n8n reintentando por un timeout de red, por ejemplo)
+        // volvia a correr applyLifecycle() sobre el mismo scan -- no duplica hallazgos (esos
+        // ya estan insertados por n8n antes de este webhook), pero si vuelve a evaluar
+        // innecesariamente el ciclo de vida completo (auto-resolucion incluida) una segunda vez.
+        if (!"RUNNING".equals(scan.getStatus())) return scan;
 
         scan.setExecutedAt(LocalDateTime.now());
         scan.setStatus("COMPLETED");

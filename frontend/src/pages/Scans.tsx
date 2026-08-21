@@ -21,6 +21,19 @@ const STATUS_BADGE: Record<string, string> = {
   EN_ANALISIS: 'bg-amber-600/20 text-amber-400 border border-amber-600/30',
   RESUELTA:    'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30',
 }
+// M-NUEVO-1 (docs/20-08-26/AUDITORIA_END_TO_END_2.md): el Historial solo mostraba
+// systemStatus (salud del pipeline, ej. "✅ ESTABLE"), no el status real del ScanReport --
+// un escaneo FAILED/PARTIALLY_COMPLETED era indistinguible de uno COMPLETED normal. Esta
+// columna complementa a systemStatus, no la reemplaza.
+const SCAN_STATUS_BADGE: Record<string, string> = {
+  COMPLETED:            'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30',
+  RUNNING:              'bg-amber-600/20 text-amber-400 border border-amber-600/30',
+  FAILED:               'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
+  PARTIALLY_COMPLETED:  'bg-[#f9f15c]/15 text-yellow-200 border border-[#f9f15c]/30',
+}
+const SCAN_STATUS_LABEL: Record<string, string> = {
+  COMPLETED: 'Completado', RUNNING: 'Corriendo', FAILED: 'Falló', PARTIALLY_COMPLETED: 'Parcial',
+}
 // Menor índice = más severo. Cualquier prioridad no reconocida cae al final.
 const PRIORITY_RANK = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 const rank = (p: string) => {
@@ -44,6 +57,12 @@ const EMPTY_RESULT_MESSAGE: Record<ScanMode, string> = {
   GLOBAL: 'No se encontraron vulnerabilidades en este escaneo.',
 }
 const NO_SCAN_YET_MESSAGE = 'Todavía no se disparó ningún escaneo. Elegí un objetivo y presioná "Escanear" para ver los resultados acá.'
+// FE-10 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes este panel seguía diciendo "no se
+// disparó ningún escaneo" mientras el escaneo estaba corriendo, y también después de que
+// el polling expiraba -- el único indicio de que algo pasaba era el label del botón y un
+// toast que desaparece solo.
+const SCANNING_MESSAGE = 'Escaneando… esto puede tardar hasta un minuto y medio para alcances grandes.'
+const TIMED_OUT_MESSAGE = 'El escaneo no respondió a tiempo. Puede seguir corriendo en segundo plano — revisá el Historial en unos minutos.'
 
 interface GroupedResult {
   label: string
@@ -420,6 +439,20 @@ export default function Scans() {
     { key: 'highs', label: 'Altas', render: v => <span className="font-mono text-xs text-[#f95c5c]">{String(v ?? 0)}</span> },
     { key: 'mediums', label: 'Medias', render: v => <span className="font-mono text-xs text-yellow-300">{String(v ?? 0)}</span> },
     { key: 'lows', label: 'Bajas', render: v => <span className="font-mono text-xs text-[#44a024]">{String(v ?? 0)}</span> },
+    {
+      key: 'status', label: 'Resultado',
+      render: (v, row) => {
+        const status = String(v ?? '')
+        return (
+          <span
+            className={`badge ${SCAN_STATUS_BADGE[status] ?? 'bg-slate-700 text-slate-300'}`}
+            title={row.errorMessage ?? undefined}
+          >
+            {SCAN_STATUS_LABEL[status] ?? (status || '—')}
+          </span>
+        )
+      },
+    },
     { key: 'systemStatus', label: 'Estado' },
   ]
 
@@ -516,7 +549,12 @@ export default function Scans() {
               <GroupedVulnerabilityResult
                 vulns={scanResult ?? []}
                 mode={resultMode ?? scanMode}
-                emptyMessage={resultMode ? EMPTY_RESULT_MESSAGE[resultMode] : NO_SCAN_YET_MESSAGE}
+                emptyMessage={
+                  poll.state === 'running' ? SCANNING_MESSAGE
+                    : poll.state === 'timeout' ? TIMED_OUT_MESSAGE
+                    : resultMode ? EMPTY_RESULT_MESSAGE[resultMode]
+                    : NO_SCAN_YET_MESSAGE
+                }
                 vulnColumns={vulnColumns}
               />
             )}

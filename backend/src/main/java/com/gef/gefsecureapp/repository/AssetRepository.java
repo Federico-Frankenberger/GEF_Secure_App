@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface AssetRepository extends JpaRepository<Asset, Long> {
@@ -20,4 +21,10 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
     List<Asset> findByDeletedAtIsNotNull();
 
     Optional<Asset> findByNameAndEnvironment_IdAndDeletedAtIsNull(String name, Long environmentId);
+
+    // DASH-NUEVO (docs/20-08-26/AUDITORIA_END_TO_END_2.md): usados por DashboardService para
+    // que "Total Activos" cuente activos reales, no software_components.
+    long countByDeletedAtIsNull();
+
+    long countByIdInAndDeletedAtIsNull(Set<Long> ids);
 }

@@ -12,11 +12,17 @@ interface Props {
 const sizes = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-5xl', '2xl': 'max-w-6xl' }
 
 export default function Modal({ title, open, onClose, children, size = 'md' }: Props) {
+  // FE-12 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes el efecto no estaba
+  // condicionado por `open` -- cada instancia de Modal montada en la página (varias
+  // páginas montan más de una, casi siempre con open=false) agregaba su propio listener
+  // global de Escape aunque no estuviera visible. Presionar Escape en cualquier lado
+  // disparaba el onClose de TODOS los modales montados, no solo el visible.
   useEffect(() => {
+    if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [onClose])
+  }, [open, onClose])
 
   if (!open) return null
 

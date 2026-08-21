@@ -5,8 +5,10 @@ import com.gef.gefsecureapp.dto.ScanReportDTO;
 import com.gef.gefsecureapp.dto.VulnerabilityAuditDTO;
 import com.gef.gefsecureapp.model.ScanReport;
 import com.gef.gefsecureapp.repository.ScanReportRepository;
+import com.gef.gefsecureapp.security.CurrentUser;
 import com.gef.gefsecureapp.service.N8nWebhookService;
 import com.gef.gefsecureapp.service.ScanService;
+import com.gef.gefsecureapp.service.UserAssetAssignmentService;
 import com.gef.gefsecureapp.service.VulnerabilityAuditService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api")
@@ -31,6 +34,7 @@ public class ScanController {
     private final ScanReportRepository scanReportRepository;
     private final VulnerabilityAuditService vulnerabilityAuditService;
     private final ScanService scanService;
+    private final UserAssetAssignmentService userAssetAssignmentService;
 
     @PostMapping("/scan")
     @PreAuthorize("hasAnyRole('ADMIN','SECURITY_ANALYST')")
@@ -48,6 +52,7 @@ public class ScanController {
             @RequestParam String targetName) {
         return scanReportRepository
                 .findFirstByTargetTypeAndTargetNameOrderByExecutedAtDesc(targetType, targetName)
+                .filter(this::isInScope)
                 .map(ScanReportDTO::from)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.noContent().build());
@@ -63,8 +68,31 @@ public class ScanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Page<ScanReport> result = scanReportRepository.search(targetType, targetName, publicCode, from, to, PageRequest.of(page, size));
+        PageRequest pageable = PageRequest.of(page, size);
+        Page<ScanReport> result;
+        if (CurrentUser.isAssetOwner()) {
+            Set<Long> scope = userAssetAssignmentService.assignedAssetIds(CurrentUser.get().id());
+            result = scope.isEmpty()
+                    ? Page.empty(pageable)
+                    : scanReportRepository.searchInScope(targetType, targetName, publicCode, from, to, scope, pageable);
+        } else {
+            result = scanReportRepository.search(targetType, targetName, publicCode, from, to, pageable);
+        }
         return ResponseEntity.ok(result.map(ScanReportDTO::from));
+    }
+
+    // A1 (2ª auditoría, docs/20-08-26/AUDITORIA_END_TO_END_2.md): ninguno de los dos endpoints
+    // de arriba aplicaba scope -- un ASSET_OWNER veia la metadata (conteos de severidad
+    // incluidos) de los escaneos de toda la organizacion, mismo tipo de fuga ya cerrada en
+    // Dashboard/Informes/Webhooks. Un escaneo ENTORNO/GLOBAL (sin un unico activo resoluble)
+    // queda fuera de scope por diseno, igual que en ReportPdfService.assertScanInScope.
+    // resolveAssetId() (no scan.getSoftwareComponent().getAsset()) para no atravesar una
+    // relacion LAZY sin sesion de Hibernate abierta -- este controller no es @Transactional.
+    private boolean isInScope(ScanReport scan) {
+        if (!CurrentUser.isAssetOwner()) return true;
+        Set<Long> scope = userAssetAssignmentService.assignedAssetIds(CurrentUser.get().id());
+        Long relevantAssetId = scanReportRepository.resolveAssetId(scan.getId());
+        return relevantAssetId != null && scope.contains(relevantAssetId);
     }
 
     @GetMapping("/scan-reports/{id}/vulnerabilities")

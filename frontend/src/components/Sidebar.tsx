@@ -10,8 +10,11 @@ const links = [
   { to: '/scans',      icon: ScanLine,        label: 'Escaneos'   },
   { to: '/assets',     icon: Server,           label: 'Activos'    },
   { to: '/kanban',     icon: KanbanSquare,      label: 'Auditoría'  },
-  { to: '/informes',   icon: FileText,          label: 'Informes'   },
-  { to: '/settings',   icon: Settings,          label: 'Config', adminOnly: true },
+  // FE-13 (docs/20-08-26/AUDITORIA_END_TO_END.md): "Informes" incluye el resumen
+  // ejecutivo y la exportación de cualquier escaneo del historial -- antes era visible
+  // para todos los roles, incluido ASSET_OWNER/AUDITOR, sin ninguna restricción acá.
+  { to: '/informes',   icon: FileText,          label: 'Informes', roles: ['ADMIN', 'SECURITY_ANALYST'] },
+  { to: '/settings',   icon: Settings,          label: 'Config', roles: ['ADMIN'] },
 ]
 
 export default function Sidebar() {
@@ -23,7 +26,7 @@ export default function Sidebar() {
     navigate('/login', { replace: true })
   }
 
-  const visibleLinks = links.filter(l => !l.adminOnly || user?.role === 'ADMIN')
+  const visibleLinks = links.filter(l => !l.roles || (user?.role != null && l.roles.includes(user.role)))
 
   return (
     <aside className="fixed inset-y-0 left-0 w-56 bg-surface-800 border-r border-surface-600 flex flex-col z-30">

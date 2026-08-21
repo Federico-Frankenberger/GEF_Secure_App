@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,7 +39,11 @@ public class WebhookController {
     @PostMapping("/vulnerabilities")
     @Operation(summary = "Recibir vulnerabilidades en batch desde n8n")
     public ResponseEntity<Void> receiveVulnerabilities(
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @RequestBody List<VulnerabilityAuditDTO.Request> vulns) {
+        if (!Objects.equals(token, internalToken)) {
+            throw new InvalidCredentialsException("Token interno inválido");
+        }
         log.info("Webhook: recibidas {} vulnerabilidades de n8n", vulns.size());
         vulns.forEach(vulnService::create);
         return ResponseEntity.ok().build();
@@ -58,17 +63,49 @@ public class WebhookController {
             log.warn("Webhook scan-report sin scan_id — ignorado (escaneo no disparado desde la app)");
             return ResponseEntity.ok().build();
         }
-        scanService.complete(payload.scanId, new ScanService.ScanCompletionPayload(
-                payload.totalDetected, payload.audited, payload.ignored,
-                payload.criticals, payload.highs, payload.mediums, payload.lows,
-                payload.systemStatus, payload.reportMessage, payload.environmentBreakdown));
+        completeWithRetry(payload);
         log.info("Scan {} completado: total={}", payload.scanId, payload.totalDetected);
         return ResponseEntity.ok().build();
     }
 
+    // Hallazgo encontrado hoy en vivo (docs/20-08-26/AUDITORIA_END_TO_END.md, N8N-03/
+    // condicion de carrera de escaneos concurrentes): dos escaneos con alcance solapado
+    // (ej. GLOBAL + ENTORNO disparados casi juntos) pueden actualizar las mismas filas de
+    // asset_vulnerabilities en orden distinto en applyLifecycle() y Postgres mata una de
+    // las dos transacciones por deadlock -- ese escaneo quedaba en RUNNING para siempre.
+    // Un deadlock es, por naturaleza, una condicion transitoria: la transaccion que gano
+    // ya libero sus locks, asi que reintentar la perdedora resuelve el caso normal.
+    private void completeWithRetry(ScanReportPayload payload) {
+        int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                scanService.complete(payload.scanId, new ScanService.ScanCompletionPayload(
+                        payload.totalDetected, payload.audited, payload.ignored,
+                        payload.criticals, payload.highs, payload.mediums, payload.lows,
+                        payload.systemStatus, payload.reportMessage, payload.environmentBreakdown));
+                return;
+            } catch (CannotAcquireLockException e) {
+                if (attempt == maxAttempts) throw e;
+                log.warn("Scan {} — deadlock al completar (intento {}/{}), reintentando: {}",
+                        payload.scanId, attempt, maxAttempts, e.getMessage());
+                try {
+                    Thread.sleep(200L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
+    }
+
     @PostMapping("/error")
     @Operation(summary = "Recibir error de workflow desde n8n")
-    public ResponseEntity<Void> receiveError(@RequestBody ErrorPayload payload) {
+    public ResponseEntity<Void> receiveError(
+            @RequestHeader(value = "X-Internal-Token", required = false) String token,
+            @RequestBody ErrorPayload payload) {
+        if (!Objects.equals(token, internalToken)) {
+            throw new InvalidCredentialsException("Token interno inválido");
+        }
         SystemError error = SystemError.builder()
                 .errorDate(LocalDateTime.now())
                 .nodeName(payload.nodeName)

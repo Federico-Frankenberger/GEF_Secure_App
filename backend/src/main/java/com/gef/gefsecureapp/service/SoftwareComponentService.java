@@ -2,16 +2,19 @@ package com.gef.gefsecureapp.service;
 
 import com.gef.gefsecureapp.dto.SoftwareComponentDTO;
 import com.gef.gefsecureapp.exception.ConflictException;
+import com.gef.gefsecureapp.exception.InvalidEcosystemException;
 import com.gef.gefsecureapp.exception.ResourceNotFoundException;
 import com.gef.gefsecureapp.mapper.SoftwareComponentMapper;
 import com.gef.gefsecureapp.model.Asset;
 import com.gef.gefsecureapp.model.SoftwareComponent;
 import com.gef.gefsecureapp.repository.AssetRepository;
+import com.gef.gefsecureapp.repository.EcosystemRepository;
 import com.gef.gefsecureapp.repository.SoftwareCatalogRepository;
 import com.gef.gefsecureapp.repository.SoftwareComponentRepository;
 import com.gef.gefsecureapp.security.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +32,7 @@ public class SoftwareComponentService {
     private final SoftwareCatalogRepository softwareCatalogRepository;
     private final AssetRepository assetRepository;
     private final UserAssetAssignmentService userAssetAssignmentService;
+    private final EcosystemRepository ecosystemRepository;
 
     @Transactional(readOnly = true)
     public List<SoftwareComponentDTO.Response> findAll() {
@@ -63,21 +67,36 @@ public class SoftwareComponentService {
     public SoftwareComponentDTO.Response create(SoftwareComponentDTO.Request dto) {
         normalize(dto);
         SoftwareComponent component = softwareComponentMapper.toEntity(dto);
-        Asset asset = resolveAsset(dto.getAssetId(), component);
-        if (asset.getEnvironment() != null) {
-            Long environmentId = asset.getEnvironment().getId();
-            softwareComponentRepository.findBySoftwareAndVersionAndAsset_Environment_IdAndDeletedAtIsNull(
-                    dto.getSoftware(), dto.getVersion(), environmentId)
-                    .ifPresent(a -> {
-                        throw new ConflictException(
-                                "Ya existe un activo con software=" + dto.getSoftware() +
-                                " version=" + dto.getVersion() +
-                                " en el entorno id=" + environmentId);
-                    });
-        }
+        resolveAsset(dto.getAssetId(), component);
+
+        // DB-05 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes comparaba por
+        // software+version+entorno completo (colisionaba entre dos ACTIVOS distintos
+        // del mismo entorno, y no corria si el activo no tenia entorno asignado). Ahora
+        // usa el mismo criterio que el UNIQUE real de la base (init/16-unique-component-
+        // per-asset.sql): asset+software+ecosystem+version -- decision confirmada: dos
+        // versiones del mismo paquete en el mismo activo son filas separadas, no un
+        // upsert (a diferencia de la importacion SBOM, que si actualiza en el lugar,
+        // ver InventoryService).
+        softwareComponentRepository.findByAsset_IdAndSoftwareAndEcosystemAndVersionAndDeletedAtIsNull(
+                dto.getAssetId(), dto.getSoftware(), dto.getEcosystem(), dto.getVersion())
+                .ifPresent(a -> { throw duplicateConflict(dto); });
+
         resolveCatalogAndPurl(dto, component);
         component.setLastScan(LocalDateTime.now());
-        return softwareComponentMapper.toResponse(softwareComponentRepository.save(component));
+        try {
+            return softwareComponentMapper.toResponse(softwareComponentRepository.save(component));
+        } catch (DataIntegrityViolationException e) {
+            // Red de seguridad final contra la condicion de carrera del chequeo de
+            // arriba (SELECT seguido de INSERT, sin lock) -- si dos requests casi
+            // simultaneas pasan el chequeo antes de que cualquiera confirme, es el
+            // UNIQUE de la base el que realmente lo impide.
+            throw duplicateConflict(dto);
+        }
+    }
+
+    private ConflictException duplicateConflict(SoftwareComponentDTO.Request dto) {
+        return new ConflictException("Ya existe este componente (software=" + dto.getSoftware() +
+                ", ecosystem=" + dto.getEcosystem() + ", version=" + dto.getVersion() + ") en este activo");
     }
 
     @Transactional
@@ -94,6 +113,12 @@ public class SoftwareComponentService {
     private void normalize(SoftwareComponentDTO.Request dto) {
         if (dto.getSoftware() != null) dto.setSoftware(dto.getSoftware().trim().toLowerCase());
         if (dto.getEcosystem() != null) dto.setEcosystem(dto.getEcosystem().trim().toLowerCase());
+        // ECO-CATALOGO (docs/20-08-26/AUDITORIA_END_TO_END_2.md): un ecosystem que no existe
+        // en public.ecosystems nunca va a poder matchear contra GitHub Advisory -- antes se
+        // persistia igual (confirmado en vivo con componentes reales cargados como "docker"/
+        // "rust" en vez de "cargo"), un falso negativo permanente y silencioso.
+        if (dto.getEcosystem() != null && !ecosystemRepository.existsByNameIgnoreCase(dto.getEcosystem()))
+            throw new InvalidEcosystemException(dto.getEcosystem());
     }
 
     private void resolveCatalogAndPurl(SoftwareComponentDTO.Request dto, SoftwareComponent component) {

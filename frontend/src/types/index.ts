@@ -239,6 +239,11 @@ export interface ScanReport {
   systemStatus: string
   targetType: ScanTargetType
   targetName: string
+  // M-NUEVO-1 (docs/20-08-26/AUDITORIA_END_TO_END_2.md): estado real del ScanReport
+  // (RUNNING/COMPLETED/FAILED/PARTIALLY_COMPLETED), distinto de systemStatus (salud del
+  // pipeline, ej. "✅ ESTABLE" incluso en un escaneo COMPLETED con críticos).
+  status: string
+  errorMessage: string | null
 }
 
 // Comparación entre dos escaneos del historial (Etapa 5 de trazabilidad)

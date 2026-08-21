@@ -14,19 +14,25 @@ export default function SoftwareAutocomplete({ value, onChange, onSelect, placeh
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState<SoftwareCatalogEntry[]>([])
   const [loading, setLoading] = useState(false)
+  // FE-04 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes un error de red y "0 resultados"
+  // mostraban el mismo mensaje ("Sin coincidencias") -- el usuario no podía distinguir
+  // "este paquete no está en el catálogo" (esperable, usa el modo texto libre) de
+  // "el catálogo no respondió" (reintentable).
+  const [error, setError] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
     if (!value.trim()) {
       setResults([])
+      setError(false)
       return
     }
     setLoading(true)
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       softwareCatalogApi.search(value.trim())
-        .then(r => setResults(r.data))
-        .catch(() => setResults([]))
+        .then(r => { setResults(r.data); setError(false) })
+        .catch(() => { setResults([]); setError(true) })
         .finally(() => setLoading(false))
     }, 250)
     return () => clearTimeout(debounceRef.current)
@@ -51,6 +57,8 @@ export default function SoftwareAutocomplete({ value, onChange, onSelect, placeh
         <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto bg-surface-700 border border-surface-600 rounded-lg shadow-lg">
           {loading ? (
             <div className="px-3 py-2 text-xs text-slate-500">Buscando…</div>
+          ) : error ? (
+            <div className="px-3 py-2 text-xs text-yellow-400">No se pudo consultar el catálogo (error de red)</div>
           ) : results.length > 0 ? (
             results.map(entry => (
               <button

@@ -301,8 +301,16 @@ const handleSave = async () => {
                   {advisory.references.length > 0 && (
                     <div className="pt-1 space-y-0.5">
                       {advisory.references.slice(0, 5).map(url => (
-                        <a key={url} href={url} target="_blank" rel="noreferrer"
-                           className="block text-brand-400 hover:underline truncate">{url}</a>
+                        // FE-11 (docs/20-08-26/AUDITORIA_END_TO_END.md): estas URLs vienen de la
+                        // advisory cacheada de GitHub, no de una fuente que controlemos -- sin
+                        // este allowlist, un `javascript:`/`data:` colado en el campo `references`
+                        // se ejecutaría como link real al clickear.
+                        /^https?:\/\//i.test(url) ? (
+                          <a key={url} href={url} target="_blank" rel="noreferrer"
+                             className="block text-brand-400 hover:underline truncate">{url}</a>
+                        ) : (
+                          <span key={url} className="block text-slate-500 truncate" title="Enlace con esquema no permitido">{url}</span>
+                        )
                       ))}
                     </div>
                   )}

@@ -16,6 +16,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -54,5 +55,22 @@ class GhsaAdvisoryServiceTest {
         assertThat(result.getSummary()).isEqualTo("Resumen");
         assertThat(result.getReferences()).containsExactly("https://a.com", "https://b.com");
         verifyNoInteractions(restClientBuilder);
+    }
+
+    @Test
+    @DisplayName("M4: getByGhsaId() ignora el cache y reintenta contra GitHub cuando pasó el TTL de 30 días")
+    void getByGhsaId_should_refetch_when_cache_isStale() {
+        GhsaAdvisoryCache stale = GhsaAdvisoryCache.builder()
+                .ghsaId("GHSA-stale")
+                .summary("Resumen viejo")
+                .fetchedAt(LocalDateTime.now().minusDays(31))
+                .build();
+        when(cacheRepository.findById("GHSA-stale")).thenReturn(Optional.of(stale));
+        when(restClientBuilder.build()).thenThrow(new RuntimeException("fetch simulado, no debe usarse una respuesta real en este test"));
+
+        assertThatThrownBy(() -> service().getByGhsaId("GHSA-stale"))
+                .isInstanceOf(GhsaAdvisoryUnavailableException.class);
+
+        verify(restClientBuilder).build();
     }
 }

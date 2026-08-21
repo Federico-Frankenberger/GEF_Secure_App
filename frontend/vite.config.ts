@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -8,6 +9,14 @@ export default defineConfig({
   // ruta como si fuera el directorio estático y nunca llega a servir el SPA.
   build: {
     assetsDir: 'static',
+  },
+  // Fase 7 (docs/20-08-26/PLAN_DE_IMPLEMENTACION.md): primer test runner de frontend
+  // del proyecto (antes cero tests, ver informe §20/§26). Vitest reusa esta misma config
+  // de Vite (mismos alias/plugins que el build real), no hace falta un config separado.
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
   },
   server: {
     port: 5173,

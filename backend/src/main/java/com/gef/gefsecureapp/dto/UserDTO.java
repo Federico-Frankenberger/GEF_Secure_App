@@ -2,6 +2,7 @@ package com.gef.gefsecureapp.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.groups.Default;
 import lombok.*;
@@ -25,7 +26,12 @@ public class UserDTO {
         @Size(max = 100)
         private String email;
 
-        @Size(max = 20)
+        // C7 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes solo tenia @Size, sin validar
+        // contra el catalogo real de roles -- un typo (ej. "Asset_Owner") ya lo rechazaba
+        // el CHECK de la base (init/06-rbac.sql), pero como respuesta 500 cruda en vez de
+        // un 400 legible, y NULL pasaba el CHECK sin problema (NULL satisface un CHECK).
+        @NotBlank(message = "El rol es requerido")
+        @Pattern(regexp = "ADMIN|SECURITY_ANALYST|ASSET_OWNER|AUDITOR", message = "Rol inválido")
         private String role;
 
         // Obligatoria solo al crear (grupo OnCreate); en el update, en blanco = no cambia el hash existente.

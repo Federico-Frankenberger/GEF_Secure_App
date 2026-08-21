@@ -1,0 +1,10 @@
+# DOCKER-03 (docs/20-08-26/AUDITORIA_END_TO_END.md): sin esto, "COPY . ." en el
+# Dockerfile mandaba node_modules/dist/.git locales al build context -- build más lento
+# y no reproducible (usaba lo que hubiera en el filesystem del host en vez de garantizar
+# siempre el node_modules generado por "npm ci" dentro del contenedor).
+node_modules
+dist
+.git
+*.log
+.env
+.env.local

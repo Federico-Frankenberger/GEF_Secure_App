@@ -11,6 +11,7 @@ import com.gef.gefsecureapp.model.AssetVulnerability;
 import com.gef.gefsecureapp.model.ScanReport;
 import com.gef.gefsecureapp.repository.AssetVulnerabilityRepository;
 import com.gef.gefsecureapp.repository.ScanReportRepository;
+import com.gef.gefsecureapp.security.CurrentUser;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /** Seccion "Informes": arma los 4 tipos de reporte en PDF (escaneo puntual,
  *  comparativo, resumen ejecutivo, ficha de CVE) con OpenPDF, reutilizando los
@@ -51,11 +53,29 @@ public class ReportPdfService {
     private final AssetVulnerabilityRepository assetVulnerabilityRepository;
     private final GhsaAdvisoryService ghsaAdvisoryService;
     private final VulnerabilityAuditMapper vulnerabilityAuditMapper;
+    private final UserAssetAssignmentService userAssetAssignmentService;
+
+    /** C2 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes solo los hallazgos detallados
+     *  de un escaneo estaban scopeados (via vulnerabilityAuditService) -- la metadata del
+     *  propio ScanReport (codigo, target, conteos por severidad) no. Para ASSET_OWNER,
+     *  un escaneo ENTORNO/GLOBAL (sin un unico activo asociado) queda fuera de scope por
+     *  diseño: no hay forma de acotarlo a "sus" activos sin arriesgar filtrar mal. */
+    private void assertScanInScope(ScanReport scan) {
+        if (!CurrentUser.isAssetOwner()) return;
+        Set<Long> scope = userAssetAssignmentService.assignedAssetIds(CurrentUser.get().id());
+        Long relevantAssetId = scan.getAsset() != null ? scan.getAsset().getId()
+                : scan.getSoftwareComponent() != null ? scan.getSoftwareComponent().getAsset().getId()
+                : null;
+        if (relevantAssetId == null || !scope.contains(relevantAssetId)) {
+            throw new ResourceNotFoundException("ScanReport", scan.getId());
+        }
+    }
 
     @Transactional(readOnly = true)
     public byte[] generateScanReport(Long scanId) {
         ScanReport scan = scanReportRepository.findById(scanId)
                 .orElseThrow(() -> new ResourceNotFoundException("ScanReport", scanId));
+        assertScanInScope(scan);
         List<VulnerabilityAuditDTO.Response> findings = vulnerabilityAuditService.findByScanReport(scanId);
 
         return build("Error generando el PDF del escaneo", document -> {
@@ -77,6 +97,8 @@ public class ReportPdfService {
                 .orElseThrow(() -> new ResourceNotFoundException("ScanReport", scanAId));
         ScanReport scanB = scanReportRepository.findById(scanBId)
                 .orElseThrow(() -> new ResourceNotFoundException("ScanReport", scanBId));
+        assertScanInScope(scanA);
+        assertScanInScope(scanB);
         ScanComparisonDTO comparison = vulnerabilityAuditService.compareScans(scanAId, scanBId);
 
         return build("Error generando el PDF comparativo", document -> {
@@ -104,9 +126,12 @@ public class ReportPdfService {
 
     @Transactional(readOnly = true)
     public byte[] generateExecutiveReport() {
+        // dashboardService.getStats() ya aplica scope (C3) -- acá solo falta scopear
+        // el top-10 de críticas, que consulta el repositorio directo.
         DashboardStatsDTO stats = dashboardService.getStats();
-        List<AssetVulnerability> topCritical = assetVulnerabilityRepository
-                .findTop10ByPriorityAndDetectionStatusOrderByLastDetectedAtDesc("CRITICAL", "OPEN");
+        List<AssetVulnerability> topCritical = CurrentUser.isAssetOwner()
+                ? scopedTop10Critical()
+                : assetVulnerabilityRepository.findTop10ByPriorityAndDetectionStatusOrderByLastDetectedAtDesc("CRITICAL", "OPEN");
 
         return build("Error generando el resumen ejecutivo", document -> {
             addTitleBlock(document, "Resumen Ejecutivo de Seguridad", "Estado actual de la postura de vulnerabilidades");
@@ -123,8 +148,9 @@ public class ReportPdfService {
 
     @Transactional(readOnly = true)
     public byte[] generateCveReport(String identifier) {
-        List<AssetVulnerability> matches = assetVulnerabilityRepository
-                .findByCveIdIgnoreCaseOrGhsaIdIgnoreCase(identifier, identifier);
+        List<AssetVulnerability> matches = CurrentUser.isAssetOwner()
+                ? scopedByCveOrGhsaId(identifier)
+                : assetVulnerabilityRepository.findByCveIdIgnoreCaseOrGhsaIdIgnoreCase(identifier, identifier);
         if (matches.isEmpty()) {
             throw new ResourceNotFoundException("No se encontraron activos afectados por " + identifier);
         }
@@ -162,6 +188,20 @@ public class ReportPdfService {
             addSectionHeading(document, "Activos afectados en la organización (" + affected.size() + ")");
             document.add(findingsTable(affected));
         });
+    }
+
+    private List<AssetVulnerability> scopedTop10Critical() {
+        Set<Long> scope = userAssetAssignmentService.assignedAssetIds(CurrentUser.get().id());
+        if (scope.isEmpty()) return List.of();
+        return assetVulnerabilityRepository
+                .findTop10ByPriorityAndDetectionStatusAndSoftwareComponent_Asset_IdInOrderByLastDetectedAtDesc(
+                        "CRITICAL", "OPEN", scope);
+    }
+
+    private List<AssetVulnerability> scopedByCveOrGhsaId(String identifier) {
+        Set<Long> scope = userAssetAssignmentService.assignedAssetIds(CurrentUser.get().id());
+        if (scope.isEmpty()) return List.of();
+        return assetVulnerabilityRepository.findByCveIdOrGhsaIdIgnoreCaseAndAssetIn(identifier, scope);
     }
 
     // ── Construcción del documento ────────────────────────────────────────────

@@ -69,7 +69,13 @@ public class SecurityConfig {
                 // dentro del propio controller (WebhookController), no con JWT.
                 .requestMatchers("/api/webhook/scan-report").permitAll()
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .requestMatchers("/actuator/**").permitAll()
+                // CFG-06 (docs/20-08-26/AUDITORIA_END_TO_END.md): antes /actuator/** entero
+                // era publico -- hoy solo expone health/info (nada sensible), pero si en el
+                // futuro se habilita algo mas (env, beans, httptrace) con
+                // management.endpoints.web.exposure.include, quedaria publico sin que nadie
+                // tuviera que volver a tocar este archivo. Restringido de antemano.
+                .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                .requestMatchers("/actuator/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .exceptionHandling(eh -> eh.authenticationEntryPoint(unauthorizedEntryPoint))

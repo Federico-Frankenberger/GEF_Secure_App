@@ -14,6 +14,15 @@ public final class PurlParser {
 
     private PurlParser() {}
 
+    // ECO-CATALOGO (docs/20-08-26/AUDITORIA_END_TO_END_2.md): este mapa es la unica fuente de
+    // "ecosystem" para altas via SBOM -- si un valor de aca no existe en public.ecosystems
+    // (cargo, composer, go, maven, npm, nuget, pip, rubygems), SoftwareComponentService lo
+    // rechaza igual, pero es mejor no generar el valor incorrecto en primer lugar. "cargo"
+    // (tipo de purl de Rust) mapeaba antes a "rust", que nunca estuvo en el catalogo -- typo
+    // real confirmado en vivo con un componente cargado asi. "docker"/"oci" (imagenes de
+    // contenedor) no tienen ecosistema equivalente en GitHub Advisory Database ni en este
+    // catalogo -- se sacan del mapa a proposito, para que parse() devuelva empty() y el
+    // import los marque NO_RECONOCIDO en vez de persistir un ecosystem que nunca va a matchear.
     private static final Map<String, String> ECOSYSTEM_BY_PURL_TYPE = Map.of(
             "maven", "maven",
             "npm", "npm",
@@ -21,9 +30,7 @@ public final class PurlParser {
             "gem", "rubygems",
             "composer", "composer",
             "golang", "go",
-            "cargo", "rust",
-            "docker", "docker",
-            "oci", "docker"
+            "cargo", "cargo"
     );
 
     public record Parsed(String ecosystem, String coordinate, String version) {}
@@ -73,7 +80,14 @@ public final class PurlParser {
         return Math.min(ia, ib);
     }
 
+    // M1 (docs/20-08-26/AUDITORIA_END_TO_END.md): URLDecoder es para
+    // application/x-www-form-urlencoded, donde "+" representa un espacio -- un PURL usa
+    // percent-encoding puro (RFC 3986), donde "+" es un caracter literal valido y comun en
+    // metadata de build de semver (ej. 1.0.0+build.5). Sin este fix, esa version se
+    // guardaba como "1.0.0 build.5" (espacio en vez de "+"). Se escapa el "+" literal a
+    // "%2B" antes de decodificar para que el decoder nunca lo trate como espacio, sin
+    // afectar los "%XX" reales.
     private static String decode(String s) {
-        return URLDecoder.decode(s, StandardCharsets.UTF_8);
+        return URLDecoder.decode(s.replace("+", "%2B"), StandardCharsets.UTF_8);
     }
 }
