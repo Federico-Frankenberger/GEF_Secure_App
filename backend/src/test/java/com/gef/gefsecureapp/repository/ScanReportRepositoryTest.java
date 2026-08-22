@@ -1,6 +1,7 @@
 package com.gef.gefsecureapp.repository;
 
 import com.gef.gefsecureapp.model.ScanReport;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -88,5 +89,27 @@ class ScanReportRepositoryTest {
         assertThat(page.getContent()).hasSize(2);
         assertThat(page.getContent().get(0).getStatus()).isEqualTo("COMPLETED");
         assertThat(page.getContent().get(1).getStatus()).isEqualTo("RUNNING");
+    }
+
+    @Test
+    @DisplayName("findByStatusAndStartedAtBefore() trae el RUNNING viejo pero no el reciente ni el ya COMPLETED (watchdog, docs/22-08-26/AUDITORIA_END_TO_END.md)")
+    void findByStatusAndStartedAtBefore_should_returnOnlyStaleRunningScans() {
+        String targetStale = "TEST-WATCHDOG-STALE-" + UUID.randomUUID();
+        String targetFresh = "TEST-WATCHDOG-FRESH-" + UUID.randomUUID();
+        String targetDone = "TEST-WATCHDOG-DONE-" + UUID.randomUUID();
+
+        ScanReport stale = running("HOST", targetStale);
+        stale.setStartedAt(LocalDateTime.now().minusMinutes(45));
+        ScanReport fresh = running("HOST", targetFresh);
+        fresh.setStartedAt(LocalDateTime.now().minusMinutes(5));
+        repository.save(stale);
+        repository.save(fresh);
+        repository.save(completed("HOST", targetDone));
+
+        var cutoff = LocalDateTime.now().minusMinutes(30);
+        var result = repository.findByStatusAndStartedAtBefore("RUNNING", cutoff);
+
+        assertThat(result).extracting(ScanReport::getTargetName).contains(targetStale);
+        assertThat(result).extracting(ScanReport::getTargetName).doesNotContain(targetFresh, targetDone);
     }
 }

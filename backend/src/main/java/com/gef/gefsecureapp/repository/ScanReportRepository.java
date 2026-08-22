@@ -125,4 +125,9 @@ public interface ScanReportRepository extends JpaRepository<ScanReport, Long> {
             WHERE r.id = :scanId
             """, nativeQuery = true)
     Long resolveAssetId(@Param("scanId") Long scanId);
+
+    // Watchdog (docs/22-08-26/AUDITORIA_END_TO_END.md): sin esto, un ScanReport que se
+    // queda trabado en RUNNING (n8n cae, el webhook de cierre nunca llega) queda asi para
+    // siempre, sin nada que lo marque como sospechoso -- ver ScanService.closeStaleRunningScans().
+    java.util.List<ScanReport> findByStatusAndStartedAtBefore(String status, LocalDateTime cutoff);
 }

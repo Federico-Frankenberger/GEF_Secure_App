@@ -99,7 +99,7 @@ class ReportPdfServiceTest {
     void generateExecutiveReport_should_producePdfBytes() {
         when(dashboardService.getStats()).thenReturn(DashboardStatsDTO.builder()
                 .totalAssets(5L).totalVulnerabilities(3L).openVulnerabilities(2L)
-                .criticalVulnerabilities(1L).resolvedThisMonth(1L).mttrDays(2.5)
+                .criticalVulnerabilities(1L).resolvedThisMonth(1L).mttrDeclaredDays(2.5)
                 .systemStatus("ESTABLE").build());
         when(assetVulnerabilityRepository.findTop10ByPriorityAndDetectionStatusOrderByLastDetectedAtDesc("CRITICAL", "OPEN"))
                 .thenReturn(List.of());

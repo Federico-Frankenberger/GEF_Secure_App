@@ -109,4 +109,24 @@ public class ScanService {
             int criticals, int highs, int mediums, int lows,
             String systemStatus, String reportMessage, String environmentBreakdown) {
     }
+
+    // Watchdog (docs/22-08-26/AUDITORIA_END_TO_END.md): sin esto no habia ningun @Scheduled
+    // en todo el backend -- un ScanReport que se queda en RUNNING para siempre (n8n cae, el
+    // webhook de cierre nunca llega) no tenia nada que lo marcara como sospechoso, ni una
+    // alarma ni una forma de distinguirlo de un escaneo legitimamente largo.
+    private static final long WATCHDOG_TIMEOUT_MINUTES = 30;
+
+    @org.springframework.scheduling.annotation.Scheduled(
+            fixedDelayString = "${scan.watchdog.check-interval-ms:300000}")
+    @Transactional
+    public void closeStaleRunningScans() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(WATCHDOG_TIMEOUT_MINUTES);
+        for (ScanReport scan : scanReportRepository.findByStatusAndStartedAtBefore("RUNNING", cutoff)) {
+            scan.setStatus("FAILED");
+            scan.setErrorMessage("Watchdog: sin actualizacion tras " + WATCHDOG_TIMEOUT_MINUTES
+                    + " minutos en RUNNING (probable fallo silencioso del pipeline de n8n o "
+                    + "del webhook de cierre del escaneo).");
+            scanReportRepository.save(scan);
+        }
+    }
 }

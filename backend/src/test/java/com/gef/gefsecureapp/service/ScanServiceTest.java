@@ -29,6 +29,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -206,5 +207,31 @@ class ScanServiceTest {
         assertThatThrownBy(() -> scanService.complete(999L,
                 new ScanService.ScanCompletionPayload(0, 0, 0, 0, 0, 0, 0, "", "", "")))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("Watchdog: closeStaleRunningScans() marca FAILED los escaneos RUNNING colgados hace mas del umbral (informe AUDITORIA_END_TO_END 2026-08-22, sin @Scheduled en todo el backend)")
+    void closeStaleRunningScans_should_markStaleRunningScans_asFailed() {
+        ScanReport stale = ScanReport.builder().id(11L).status("RUNNING")
+                .startedAt(LocalDateTime.now().minusMinutes(45)).build();
+        when(scanReportRepository.findByStatusAndStartedAtBefore(eq("RUNNING"), any(LocalDateTime.class)))
+                .thenReturn(java.util.List.of(stale));
+
+        scanService.closeStaleRunningScans();
+
+        assertThat(stale.getStatus()).isEqualTo("FAILED");
+        assertThat(stale.getErrorMessage()).isNotBlank();
+        verify(scanReportRepository).save(stale);
+    }
+
+    @Test
+    @DisplayName("Watchdog: closeStaleRunningScans() no toca nada si no hay escaneos RUNNING mas viejos que el umbral")
+    void closeStaleRunningScans_should_doNothing_when_noStaleScans() {
+        when(scanReportRepository.findByStatusAndStartedAtBefore(eq("RUNNING"), any(LocalDateTime.class)))
+                .thenReturn(java.util.List.of());
+
+        scanService.closeStaleRunningScans();
+
+        verify(scanReportRepository, never()).save(any());
     }
 }

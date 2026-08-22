@@ -319,7 +319,10 @@ public class ReportPdfService {
         addKpiRow(table, "Abiertas", String.valueOf(stats.getOpenVulnerabilities()));
         addKpiRow(table, "Críticas", String.valueOf(stats.getCriticalVulnerabilities()));
         addKpiRow(table, "Resueltas este mes", String.valueOf(stats.getResolvedThisMonth()));
-        addKpiRow(table, "MTTR (tiempo medio de resolución)", formatMttr(stats.getMttrDays()));
+        // Fase 4 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): la etiqueta aclara
+        // "declarado" -- mide hasta la marca manual del analista, no una verificacion del
+        // sistema (antipatron "MTTR nominal", Seccion 19 del marco de tracking).
+        addKpiRow(table, "MTTR declarado (hasta marca manual de resuelto)", formatMttr(stats.getMttrDeclaredDays()));
         return table;
     }
 

@@ -71,6 +71,8 @@ public class GhsaAdvisoryService {
                     .description(textOrNull(body.path("description")))
                     .referenceUrls(joinReferences(body.path("references")))
                     .fetchedAt(LocalDateTime.now())
+                    .reviewed(parseReviewed(body.path("type")))
+                    .withdrawnAt(parseTimestamp(body.path("withdrawn_at")))
                     .build();
             cacheRepository.save(entity);
             log.info("Advisory {} cacheada desde GitHub", ghsaId);
@@ -95,6 +97,24 @@ public class GhsaAdvisoryService {
         return String.join("\n", urls);
     }
 
+    // Fase 8 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md), Componente D: GitHub
+    // usa "type" con valores reviewed/unreviewed/malware -- solo "reviewed" significa que
+    // una persona valido severidad/rango/version corregida.
+    private Boolean parseReviewed(JsonNode typeNode) {
+        if (typeNode.isMissingNode() || typeNode.isNull()) return null;
+        return "reviewed".equalsIgnoreCase(typeNode.asText());
+    }
+
+    private LocalDateTime parseTimestamp(JsonNode node) {
+        if (node.isMissingNode() || node.isNull()) return null;
+        try {
+            return java.time.OffsetDateTime.parse(node.asText()).toLocalDateTime();
+        } catch (Exception ex) {
+            log.warn("No se pudo parsear timestamp de GitHub: {}", node.asText());
+            return null;
+        }
+    }
+
     private GhsaAdvisoryDTO toDto(GhsaAdvisoryCache entity) {
         List<String> refs = entity.getReferenceUrls() == null || entity.getReferenceUrls().isBlank()
                 ? List.of()
@@ -105,6 +125,8 @@ public class GhsaAdvisoryService {
                 .description(entity.getDescription())
                 .references(refs)
                 .cachedAt(entity.getFetchedAt())
+                .reviewed(entity.getReviewed())
+                .withdrawnAt(entity.getWithdrawnAt())
                 .build();
     }
 }

@@ -50,6 +50,9 @@ export interface Asset {
   environmentName: string | null
   description: string | null
   createdAt: string | null
+  // Fase 10, opcional (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): declarado a
+  // mano, null = no declarado todavía (no se asume "no expuesto").
+  exposed: boolean | null
 }
 
 export interface AssetRequest {
@@ -57,6 +60,7 @@ export interface AssetRequest {
   assetType?: string
   environmentId?: number
   description?: string
+  exposed?: boolean
 }
 
 // Activo eliminado logicamente (panel de restauración, ADMIN/SECURITY_ANALYST)
@@ -131,7 +135,21 @@ export interface VulnerabilityAudit {
   installedVersion: string | null
   patchedVersion: string | null
   isZeroDay: boolean | null
+  // Fase 2/5 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md).
+  reopenCount?: number
+  outcome?: VulnOutcome | null
+  mitigationControl?: string | null
+  justification?: string | null
+  acceptedBy?: string | null
+  riskAcceptedUntil?: string | null
+  // Fase 6: desglose de variables de prioridad (JSON armado por n8n) + plazo calculado.
+  priorityVariables?: string | null
+  dueDate?: string | null
 }
+
+// Fase 5: vocabulario VEX -- solo aplica cuando status = RESUELTA. undefined/null = cierre
+// plano (sin clasificar), igual que antes de esta fase.
+export type VulnOutcome = 'MITIGADA' | 'NO_APLICA' | 'RIESGO_ACEPTADO'
 
 // ── GHSA Advisory (Frente 3: descripción real de la vulnerabilidad) ────────
 export interface GhsaAdvisory {
@@ -158,6 +176,16 @@ export interface StatusUpdate {
   status: string
   assignedTo?: string
   decision?: string
+  // Fase 5 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): solo se valida/usa
+  // cuando status = RESUELTA. Sin outcome = cierre plano, sin clasificar.
+  outcome?: VulnOutcome | ''
+  mitigationControl?: string
+  justification?: string
+  acceptedBy?: string
+  riskAcceptedUntil?: string
+  // Fase 7: escala de evidencia E0-E6 + referencia al respaldo real.
+  evidenceLevel?: 'E0' | 'E1' | 'E2' | 'E3' | 'E4' | 'E5' | 'E6' | ''
+  evidenceRef?: string
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -217,11 +245,22 @@ export interface DashboardStats {
   openVulnerabilities: number
   criticalVulnerabilities: number
   resolvedThisMonth: number
-  mttrDays: number | null
+  // Fase 4 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): antes "mttrDays" a secas --
+  // medía hasta la marca MANUAL de resuelto, no una verificación real (antipatrón "MTTR
+  // nominal"). mttrVerifiedDays queda null hasta la Fase 8 (Componente D).
+  mttrDeclaredDays: number | null
+  mttrVerifiedDays: number | null
   systemStatus: string
   severityDistribution: Array<{ name: string; value: number }>
   statusDistribution:   Array<{ name: string; value: number }>
   trendsLast30Days:     Array<{ date: string; detectadas: number; resueltas: number }>
+  agingBuckets:     Array<{ bucket: string; count: number }>
+  mttrByCriticality: Array<{ priority: string; avgDays: number }>
+  // Fase 2 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): tasa de recurrencia.
+  reopenedCasesCount: number
+  recurrenceRate: number
+  // Fase 9: por responsable, confiable ahora que assignedToUser es FK real.
+  byResponsible: Array<{ name: string; value: number }>
 }
 
 // ── Scan (activo / entorno / global) ─────────────────────────────────────────

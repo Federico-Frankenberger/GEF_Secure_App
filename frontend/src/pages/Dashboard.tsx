@@ -3,7 +3,7 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import { ShieldAlert, Package, AlertOctagon, CheckCircle2, TrendingDown, Wifi, Clock } from 'lucide-react'
+import { ShieldAlert, Package, AlertOctagon, CheckCircle2, TrendingDown, Wifi, Clock, RotateCcw } from 'lucide-react'
 import { dashboardApi } from '../services/api'
 import type { DashboardStats } from '../types'
 import StatCard from '../components/StatCard'
@@ -29,6 +29,13 @@ function formatMttr(days?: number | null): string {
   return `${days.toFixed(1)} d`
 }
 
+// Fase 2 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): recurrenceRate llega
+// como proporcion 0-1 -- se muestra como porcentaje.
+function formatRecurrenceRate(rate?: number | null): string {
+  if (rate === null || rate === undefined) return '—'
+  return `${(rate * 100).toFixed(1)}%`
+}
+
 export default function Dashboard() {
   const [stats,   setStats]   = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -46,8 +53,9 @@ export default function Dashboard() {
     { title: 'Abiertas',            value: stats?.openVulnerabilities,    icon: AlertOctagon, color: 'red'     as const },
     { title: 'Críticas',            value: stats?.criticalVulnerabilities,icon: TrendingDown, color: 'red'     as const },
     { title: 'Resueltas este mes',  value: stats?.resolvedThisMonth,      icon: CheckCircle2, color: 'emerald' as const },
-    { title: 'MTTR',                value: formatMttr(stats?.mttrDays),   icon: Clock,        color: 'amber'   as const },
+    { title: 'MTTR declarado',      value: formatMttr(stats?.mttrDeclaredDays), icon: Clock,  color: 'amber'   as const },
     { title: 'Estado del sistema',  value: stats?.systemStatus,           icon: Wifi,         color: 'sky'     as const },
+    { title: 'Tasa de recurrencia', value: formatRecurrenceRate(stats?.recurrenceRate), icon: RotateCcw, color: 'amber' as const },
   ]
 
   return (
@@ -134,6 +142,68 @@ export default function Dashboard() {
                   <Cell key={i} fill={STATUS_COLORS[i % STATUS_COLORS.length]} />
                 ))}
               </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Fila 3 (Fase 4, docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): aging + MTTR por criticidad */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div className="card">
+          <p className="text-xs font-semibold text-slate-400 mb-4 uppercase tracking-wider">
+            Antigüedad de lo abierto (aging)
+          </p>
+          {loading ? <ChartSkeleton h={160} /> : (
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={stats?.agingBuckets ?? []} style={CHART_STYLE}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#232639" />
+                <XAxis dataKey="bucket" tick={{ fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fill: '#64748b' }} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ background: '#1a1d2e', border: '1px solid #232639', borderRadius: 8 }} />
+                <Bar dataKey="count" fill="#f59e0b" radius={[6, 6, 0, 0]} maxBarSize={48} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="card">
+          <p className="text-xs font-semibold text-slate-400 mb-4 uppercase tracking-wider">
+            MTTR declarado por criticidad
+          </p>
+          {loading ? <ChartSkeleton h={160} /> : (
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={(stats?.mttrByCriticality ?? []).map(r => ({ ...r, avgDays: Number(r.avgDays.toFixed(1)) }))} style={CHART_STYLE} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#232639" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#64748b' }} tickLine={false} axisLine={false} unit="d" />
+                <YAxis type="category" dataKey="priority" tick={{ fill: '#94a3b8' }} tickLine={false} axisLine={false} width={80} />
+                <Tooltip contentStyle={{ background: '#1a1d2e', border: '1px solid #232639', borderRadius: 8 }} />
+                <Bar dataKey="avgDays" radius={[0, 6, 6, 0]} maxBarSize={24}>
+                  {(stats?.mttrByCriticality ?? []).map((entry, i) => (
+                    <Cell key={i} fill={SEVERITY_COLORS[entry.priority] ?? '#6366f1'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {/* Fase 9 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): por responsable,
+          ahora confiable porque assignedToUser es una FK real, no texto libre. */}
+      <div className="card mt-4">
+        <p className="text-xs font-semibold text-slate-400 mb-4 uppercase tracking-wider">
+          Abiertas por responsable
+        </p>
+        {loading ? <ChartSkeleton h={160} /> : (stats?.byResponsible ?? []).length === 0 ? (
+          <p className="text-xs text-slate-500 italic">Sin casos abiertos con responsable asignado.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={stats?.byResponsible ?? []} style={CHART_STYLE} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#232639" horizontal={false} />
+              <XAxis type="number" tick={{ fill: '#64748b' }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ fill: '#94a3b8' }} tickLine={false} axisLine={false} width={120} />
+              <Tooltip contentStyle={{ background: '#1a1d2e', border: '1px solid #232639', borderRadius: 8 }} />
+              <Bar dataKey="value" fill="#6366f1" radius={[0, 6, 6, 0]} maxBarSize={24} />
             </BarChart>
           </ResponsiveContainer>
         )}

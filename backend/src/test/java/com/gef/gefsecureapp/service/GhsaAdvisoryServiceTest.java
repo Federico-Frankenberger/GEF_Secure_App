@@ -58,6 +58,25 @@ class GhsaAdvisoryServiceTest {
     }
 
     @Test
+    @DisplayName("Fase 8: getByGhsaId() expone reviewed y withdrawnAt del cache")
+    void getByGhsaId_should_exposeReviewedAndWithdrawnAt_fromCache() {
+        LocalDateTime withdrawn = LocalDateTime.now().minusDays(2);
+        GhsaAdvisoryCache cached = GhsaAdvisoryCache.builder()
+                .ghsaId("GHSA-yyyy")
+                .summary("Resumen")
+                .fetchedAt(LocalDateTime.now())
+                .reviewed(false)
+                .withdrawnAt(withdrawn)
+                .build();
+        when(cacheRepository.findById("GHSA-yyyy")).thenReturn(Optional.of(cached));
+
+        GhsaAdvisoryDTO result = service().getByGhsaId("GHSA-yyyy");
+
+        assertThat(result.getReviewed()).isFalse();
+        assertThat(result.getWithdrawnAt()).isEqualTo(withdrawn);
+    }
+
+    @Test
     @DisplayName("M4: getByGhsaId() ignora el cache y reintenta contra GitHub cuando pasó el TTL de 30 días")
     void getByGhsaId_should_refetch_when_cache_isStale() {
         GhsaAdvisoryCache stale = GhsaAdvisoryCache.builder()

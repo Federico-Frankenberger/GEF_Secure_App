@@ -41,9 +41,9 @@ public class DashboardService {
         // Etapa 4: cuenta vulnerabilidades persistentes (AssetVulnerability),
         // no detecciones individuales -- un CVE re-detectado en 5 escaneos
         // cuenta una sola vez, no cinco.
-        long totalVulns, openVulns, criticals, resolvedThisMonth;
-        Double mttrDays;
-        List<Object[]> severityRows, statusRows, detectionsRows, resolutionsRows;
+        long totalVulns, openVulns, criticals, resolvedThisMonth, reopenedCasesCount;
+        Double mttrDeclaredDays;
+        List<Object[]> severityRows, statusRows, detectionsRows, resolutionsRows, agingRows, mttrByPriorityRows, byResponsibleRows;
 
         LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
         LocalDateTime since = LocalDateTime.now().minusDays(30);
@@ -54,22 +54,30 @@ public class DashboardService {
                                  + vulnRepository.countByTriageStatus("EN_ANALISIS");
             criticals           = vulnRepository.countByPriority("CRITICAL");
             resolvedThisMonth   = vulnRepository.countResolvedBetween(startOfMonth, LocalDateTime.now());
-            mttrDays            = vulnRepository.findAverageMttrDays();
+            mttrDeclaredDays    = vulnRepository.findAverageMttrDeclaredDays();
             severityRows        = vulnRepository.countGroupedByPriority();
             statusRows          = vulnRepository.countGroupedByTriageStatus();
             detectionsRows      = vulnRepository.countDailyDetections(since);
             resolutionsRows     = vulnRepository.countDailyResolutions(since);
+            reopenedCasesCount  = vulnRepository.countByReopenCountGreaterThan(0);
+            agingRows           = vulnRepository.countAgingBuckets();
+            mttrByPriorityRows  = vulnRepository.findAverageMttrDeclaredDaysByPriority();
+            byResponsibleRows   = vulnRepository.countOpenGroupedByAssignedUser();
         } else {
             totalVulns          = scope.isEmpty() ? 0 : vulnRepository.countBySoftwareComponent_Asset_IdIn(scope);
             openVulns           = scope.isEmpty() ? 0 : vulnRepository.countByTriageStatusAndSoftwareComponent_Asset_IdIn("DETECTADA", scope)
                                  + vulnRepository.countByTriageStatusAndSoftwareComponent_Asset_IdIn("EN_ANALISIS", scope);
             criticals           = scope.isEmpty() ? 0 : vulnRepository.countByPriorityAndSoftwareComponent_Asset_IdIn("CRITICAL", scope);
             resolvedThisMonth   = scope.isEmpty() ? 0 : vulnRepository.countResolvedBetween(startOfMonth, LocalDateTime.now(), scope);
-            mttrDays            = scope.isEmpty() ? null : vulnRepository.findAverageMttrDays(scope);
+            mttrDeclaredDays    = scope.isEmpty() ? null : vulnRepository.findAverageMttrDeclaredDays(scope);
             severityRows        = scope.isEmpty() ? List.of() : vulnRepository.countGroupedByPriority(scope);
             statusRows          = scope.isEmpty() ? List.of() : vulnRepository.countGroupedByTriageStatus(scope);
             detectionsRows      = scope.isEmpty() ? List.of() : vulnRepository.countDailyDetections(since, scope);
             resolutionsRows     = scope.isEmpty() ? List.of() : vulnRepository.countDailyResolutions(since, scope);
+            reopenedCasesCount  = scope.isEmpty() ? 0 : vulnRepository.countByReopenCountGreaterThanAndSoftwareComponent_Asset_IdIn(0, scope);
+            agingRows           = scope.isEmpty() ? List.of() : vulnRepository.countAgingBuckets(scope);
+            mttrByPriorityRows  = scope.isEmpty() ? List.of() : vulnRepository.findAverageMttrDeclaredDaysByPriority(scope);
+            byResponsibleRows   = scope.isEmpty() ? List.of() : vulnRepository.countOpenGroupedByAssignedUser(scope);
         }
 
         // Para ASSET_OWNER, el "systemStatus" del ultimo scan no se puede resolver
@@ -110,17 +118,43 @@ public class DashboardService {
             trendMap.get(day).put("resueltas", row[1]);
         }
 
+        // Fase 2 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): tasa de recurrencia
+        // sobre el total de hallazgos persistentes -- 0.0 sin dividir por cero si no hay ninguno.
+        double recurrenceRate = totalVulns == 0 ? 0.0 : (double) reopenedCasesCount / totalVulns;
+
+        // Fase 4: aging (bucket, count) y MTTR declarado por criticidad (priority, avgDays).
+        List<Map<String, Object>> agingBuckets = new ArrayList<>();
+        for (Object[] row : agingRows) {
+            agingBuckets.add(Map.of("bucket", row[0], "count", row[1]));
+        }
+        List<Map<String, Object>> mttrByCriticality = new ArrayList<>();
+        for (Object[] row : mttrByPriorityRows) {
+            mttrByCriticality.add(Map.of("priority", row[0], "avgDays", row[1]));
+        }
+
+        // Fase 9: por responsable (name, count) -- solo abiertas y con assignedToUser real.
+        List<Map<String, Object>> byResponsible = new ArrayList<>();
+        for (Object[] row : byResponsibleRows) {
+            byResponsible.add(Map.of("name", row[0], "value", row[1]));
+        }
+
         return DashboardStatsDTO.builder()
                 .totalAssets(totalAssets)
                 .totalVulnerabilities(totalVulns)
                 .openVulnerabilities(openVulns)
                 .criticalVulnerabilities(criticals)
                 .resolvedThisMonth(resolvedThisMonth)
-                .mttrDays(mttrDays)
+                .mttrDeclaredDays(mttrDeclaredDays)
+                .mttrVerifiedDays(null) // Fase 8: requiere el Componente D (verificacion real)
                 .systemStatus(systemStatus)
                 .severityDistribution(severityDist)
                 .statusDistribution(statusDist)
                 .trendsLast30Days(new ArrayList<>(trendMap.values()))
+                .agingBuckets(agingBuckets)
+                .mttrByCriticality(mttrByCriticality)
+                .reopenedCasesCount(reopenedCasesCount)
+                .recurrenceRate(recurrenceRate)
+                .byResponsible(byResponsible)
                 .build();
     }
 }

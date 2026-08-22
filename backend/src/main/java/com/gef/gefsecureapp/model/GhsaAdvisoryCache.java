@@ -31,4 +31,13 @@ public class GhsaAdvisoryCache {
 
     @Column(name = "fetched_at")
     private LocalDateTime fetchedAt;
+
+    // Fase 8 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md), Componente D: GitHub
+    // distingue advisories revisadas (reviewed=true, validadas por una persona) de no
+    // revisadas (sincronizadas automaticamente desde NVD). withdrawnAt no-null significa
+    // que GitHub retiro el advisory despues de publicado.
+    private Boolean reviewed;
+
+    @Column(name = "withdrawn_at")
+    private LocalDateTime withdrawnAt;
 }

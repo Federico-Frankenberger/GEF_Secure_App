@@ -31,4 +31,12 @@ public class Asset {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "environment_id")
     private Environment environment;
+
+    // Fase 10, opcional (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md), Sección 5 de
+    // Brechas_Tracking_Remediacion.md: declarado a mano por el analista, no descubierto por
+    // ningun mecanismo de Caja Negra (que queda fuera de alcance). null = no declarado
+    // todavia (no se asume "no expuesto" por omision -- Environment.businessCriticality ya
+    // cubre buena parte de la señal de exposición; este campo es para el caso puntual de
+    // "alcanzable desde internet", una variable distinta).
+    private Boolean exposed;
 }

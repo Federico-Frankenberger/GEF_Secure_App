@@ -30,7 +30,15 @@ export default function Kanban() {
   const [users,    setUsers]    = useState<User[]>([])
   const [loading,  setLoading]  = useState(true)
   const [selected, setSelected] = useState<VulnerabilityAudit | null>(null)
-  const [form,     setForm]     = useState({ status: '', assignedTo: '', decision: '' })
+  const [form,     setForm]     = useState({
+    status: '', assignedTo: '', decision: '',
+    // Fase 5 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): vocabulario VEX.
+    outcome: '' as '' | 'MITIGADA' | 'NO_APLICA' | 'RIESGO_ACEPTADO',
+    mitigationControl: '', justification: '', acceptedBy: '', riskAcceptedUntil: '',
+    // Fase 7 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): escala de evidencia.
+    evidenceLevel: '' as '' | 'E0' | 'E1' | 'E2' | 'E3' | 'E4' | 'E5' | 'E6',
+    evidenceRef: '',
+  })
   const [saving,   setSaving]   = useState(false)
 
   // Filtros inicializados: Fecha de HOY por defecto
@@ -106,7 +114,18 @@ export default function Kanban() {
 
   const openEdit = (vuln: VulnerabilityAudit) => {
     setSelected(vuln)
-    setForm({ status: vuln.status, assignedTo: vuln.assignedTo ?? '', decision: vuln.decision ?? '' })
+    setForm({
+      status: vuln.status, assignedTo: vuln.assignedTo ?? '', decision: vuln.decision ?? '',
+      outcome: (vuln.outcome as 'MITIGADA' | 'NO_APLICA' | 'RIESGO_ACEPTADO') ?? '',
+      mitigationControl: vuln.mitigationControl ?? '',
+      justification: vuln.justification ?? '',
+      acceptedBy: vuln.acceptedBy ?? '',
+      riskAcceptedUntil: vuln.riskAcceptedUntil ? vuln.riskAcceptedUntil.slice(0, 10) : '',
+      // Fase 7: no hay "evidencia vigente" que precargar -- es un dato por transicion, no
+      // por AssetVulnerability. Arranca vacio en cada apertura del modal.
+      evidenceLevel: '',
+      evidenceRef: '',
+    })
     setAdvisory(null)
     setAdvisoryError(false)
     if (vuln.ghsaId) {
@@ -122,7 +141,18 @@ const handleSave = async () => {
     if (!selected) return
     setSaving(true)
     try {
-      await vulnApi.updateStatus(selected.id, form)
+      // Fase 5: outcome solo tiene sentido si status = RESUELTA -- no mandar restos de un
+      // outcome elegido antes de cambiar el select de vuelta. riskAcceptedUntil llega del
+      // <input type="date"> como "yyyy-mm-dd"; el backend espera LocalDateTime completo.
+      const payload = {
+        ...form,
+        outcome: form.status === 'RESUELTA' ? (form.outcome || undefined) : undefined,
+        riskAcceptedUntil: form.riskAcceptedUntil ? `${form.riskAcceptedUntil}T00:00:00` : undefined,
+        // Fase 7: igual criterio que outcome -- evidencia solo aplica si se esta cerrando.
+        evidenceLevel: form.status === 'RESUELTA' ? (form.evidenceLevel || undefined) : undefined,
+        evidenceRef: form.status === 'RESUELTA' ? (form.evidenceRef || undefined) : undefined,
+      }
+      await vulnApi.updateStatus(selected.id, payload)
       toast.success('Actualizado')
       setSelected(null)
       load()
@@ -281,6 +311,15 @@ const handleSave = async () => {
               </p>
               <p><span className="text-slate-500">Activo: </span><span className="text-white">{selected.asset}</span>{selected.environmentName && <span className="text-slate-500"> · {selected.environmentName}</span>}</p>
               <p><span className="text-slate-500">Detectado: </span><span className="text-white">{selected.detectedAt ? new Date(selected.detectedAt).toLocaleString('es-AR') : '—'}</span></p>
+              {/* Fase 6 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): plazo calculado a partir de la prioridad. */}
+              {selected.dueDate && (
+                <p>
+                  <span className="text-slate-500">Vence: </span>
+                  <span className={new Date(selected.dueDate) < new Date() && selected.status !== 'RESUELTA' ? 'text-red-400 font-bold' : 'text-white'}>
+                    {new Date(selected.dueDate).toLocaleDateString('es-AR')}
+                  </span>
+                </p>
+              )}
             </div>
 
             {/* Descripción real de la advisory (Frente 3) -- qué es esto, en criollo */}
@@ -345,6 +384,126 @@ const handleSave = async () => {
                 placeholder="Pasos seguidos, decisión tomada, contexto adicional..."
               />
             </div>
+
+            {/* Fase 5 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): vocabulario VEX
+                -- solo aplica cuando el estado elegido es RESUELTA. */}
+            {form.status === 'RESUELTA' && (
+              <div className="bg-surface-900 border border-white/5 rounded-lg p-3 space-y-3">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                    Cómo se cerró (opcional)
+                  </label>
+                  <select
+                    className="input w-full bg-surface-800 border-white/10 text-xs"
+                    value={form.outcome}
+                    disabled={isAuditor}
+                    onChange={e => setForm(f => ({ ...f, outcome: e.target.value as typeof f.outcome }))}
+                  >
+                    <option value="">Resuelta (sin clasificar)</option>
+                    <option value="MITIGADA">Mitigada — riesgo reducido sin eliminar la causa</option>
+                    <option value="NO_APLICA">No aplica — falso positivo o no explotable acá</option>
+                    <option value="RIESGO_ACEPTADO">Riesgo aceptado — con vencimiento</option>
+                  </select>
+                </div>
+
+                {form.outcome === 'MITIGADA' && (
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                      Control compensatorio aplicado
+                    </label>
+                    <textarea
+                      className="input w-full bg-surface-800 border-white/10 text-xs resize-none"
+                      rows={2}
+                      value={form.mitigationControl}
+                      disabled={isAuditor}
+                      onChange={e => setForm(f => ({ ...f, mitigationControl: e.target.value }))}
+                      placeholder="Ej: regla de WAF, aislamiento de red, deshabilitación de la función afectada..."
+                    />
+                  </div>
+                )}
+
+                {form.outcome === 'NO_APLICA' && (
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                      Justificación (obligatoria)
+                    </label>
+                    <textarea
+                      className="input w-full bg-surface-800 border-white/10 text-xs resize-none"
+                      rows={2}
+                      value={form.justification}
+                      disabled={isAuditor}
+                      onChange={e => setForm(f => ({ ...f, justification: e.target.value }))}
+                      placeholder="Por qué esta vulnerabilidad no aplica en la configuración real..."
+                    />
+                  </div>
+                )}
+
+                {form.outcome === 'RIESGO_ACEPTADO' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                        Aceptado por
+                      </label>
+                      <input
+                        className="input w-full bg-surface-800 border-white/10 text-xs"
+                        value={form.acceptedBy}
+                        disabled={isAuditor}
+                        onChange={e => setForm(f => ({ ...f, acceptedBy: e.target.value }))}
+                        placeholder="Responsable que acepta el riesgo"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                        Vence el (obligatorio)
+                      </label>
+                      <input
+                        type="date"
+                        className="input w-full bg-surface-800 border-white/10 text-xs"
+                        value={form.riskAcceptedUntil}
+                        disabled={isAuditor}
+                        onChange={e => setForm(f => ({ ...f, riskAcceptedUntil: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Fase 7 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md): escala de
+                    evidencia E0-E6 + referencia al respaldo real (reporte, commit, PR). */}
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                      Nivel de evidencia (opcional, E0 por defecto)
+                    </label>
+                    <select
+                      className="input w-full bg-surface-800 border-white/10 text-xs"
+                      value={form.evidenceLevel}
+                      disabled={isAuditor}
+                      onChange={e => setForm(f => ({ ...f, evidenceLevel: e.target.value as typeof f.evidenceLevel }))}
+                    >
+                      <option value="">E0 — Ninguna (solo el cambio de estado)</option>
+                      <option value="E1">E1 — Declaración manual</option>
+                      <option value="E2">E2 — Ticket cerrado</option>
+                      <option value="E3">E3 — Despliegue con timestamp</option>
+                      <option value="E4">E4 — Inventario posterior (versión corregida)</option>
+                      <option value="E5">E5 — Reevaluación independiente</option>
+                      <option value="E6">E6 — Verificación específica reproducible</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                      Respaldo (URL de reporte, commit, PR)
+                    </label>
+                    <input
+                      className="input w-full bg-surface-800 border-white/10 text-xs"
+                      value={form.evidenceRef}
+                      disabled={isAuditor}
+                      onChange={e => setForm(f => ({ ...f, evidenceRef: e.target.value }))}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-between items-center pt-3 border-t border-white/5">
               {canDelete && (

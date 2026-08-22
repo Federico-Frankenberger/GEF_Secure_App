@@ -13,4 +13,7 @@ public class GhsaAdvisoryDTO {
     private String description;
     private List<String> references;
     private LocalDateTime cachedAt;
+    // Fase 8 (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md), Componente D.
+    private Boolean reviewed;
+    private LocalDateTime withdrawnAt;
 }

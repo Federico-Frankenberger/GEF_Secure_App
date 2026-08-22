@@ -19,6 +19,10 @@ public class AssetDTO {
         private Long environmentId;
 
         private String description;
+
+        // Fase 10, opcional (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md):
+        // declarado a mano, null = no declarado todavia (no se asume "no expuesto").
+        private Boolean exposed;
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -30,6 +34,7 @@ public class AssetDTO {
         private String environmentName;
         private String description;
         private LocalDateTime createdAt;
+        private Boolean exposed;
     }
 
     /** Activo eliminado logicamente, para el panel de restauracion. */

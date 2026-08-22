@@ -47,7 +47,7 @@ const INVENTORY_STATUS_LABEL: Record<InventoryItemStatus, string> = {
 }
 
 const EMPTY_ASSET_FORM: AssetRequest = {
-  name: '', assetType: 'SERVIDOR', environmentId: undefined, description: '',
+  name: '', assetType: 'SERVIDOR', environmentId: undefined, description: '', exposed: undefined,
 }
 // El form permite assetId transitoriamente undefined mientras el usuario no eligio host
 // todavia (el "Guardar" se deshabilita hasta que lo elija) -- el wire type SoftwareComponentRequest
@@ -145,10 +145,13 @@ export default function Assets() {
   const openCreateAsset = () => { setEditingAsset(null); setAssetForm(EMPTY_ASSET_FORM); setAssetModal(true) }
   const openEditAsset = (a: Asset) => {
     setEditingAsset(a)
-    setAssetForm({ name: a.name, assetType: a.assetType, environmentId: a.environmentId ?? undefined, description: a.description ?? '' })
+    setAssetForm({
+      name: a.name, assetType: a.assetType, environmentId: a.environmentId ?? undefined,
+      description: a.description ?? '', exposed: a.exposed ?? undefined,
+    })
     setAssetModal(true)
   }
-  const fAsset = (k: keyof AssetRequest, v: string | number | undefined) => setAssetForm(prev => ({ ...prev, [k]: v }))
+  const fAsset = (k: keyof AssetRequest, v: string | number | boolean | undefined) => setAssetForm(prev => ({ ...prev, [k]: v }))
 
   const handleSaveAsset = async () => {
     setSavingAsset(true)
@@ -669,6 +672,18 @@ export default function Assets() {
             <label className="block text-xs text-slate-400 mb-1">Descripción</label>
             <textarea className="input resize-none" rows={2} value={assetForm.description} onChange={e => fAsset('description', e.target.value)} placeholder="Descripción opcional…" />
           </div>
+          {/* Fase 10, opcional (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md):
+              declarado a mano -- sin checkbox tocado queda undefined/null (no declarado),
+              no se asume "no expuesto" por omisión. */}
+          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={assetForm.exposed ?? false}
+              onChange={e => fAsset('exposed', e.target.checked)}
+              className="accent-brand-500"
+            />
+            Expuesto a internet (alcanzable desde afuera)
+          </label>
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setAssetModal(false)} className="btn-ghost">Cancelar</button>
             {/* FE-07 (docs/20-08-26/AUDITORIA_END_TO_END.md): único formulario de la app
