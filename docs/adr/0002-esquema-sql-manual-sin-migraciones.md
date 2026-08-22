@@ -14,7 +14,7 @@ El backend usa `spring.jpa.hibernate.ddl-auto=validate`: Hibernate valida que la
 
 Mantener el esquema como una secuencia de scripts SQL idempotentes y ordenados numéricamente, sin adoptar una herramienta de migraciones formal. Cada cambio de esquema se agrega como un nuevo script numerado (`init/26_...sql`, etc.), nunca editando un script ya aplicado.
 
-Esto funciona porque el modelo de despliegue real del proyecto es "volumen de Postgres nuevo por entorno" (desarrollo local, y el entorno de tesis/demo), no una flota de bases de datos productivas en distintas versiones de esquema que necesiten actualizarse in-place de forma controlada.
+Esto funciona porque el modelo de despliegue real del proyecto es "volumen de Postgres nuevo por entorno" (desarrollo local y el entorno de demo/staging actual), no una flota de bases de datos productivas en distintas versiones de esquema que necesiten actualizarse in-place de forma controlada.
 
 ## Consequences
 
@@ -26,7 +26,7 @@ Esto funciona porque el modelo de despliegue real del proyecto es "volumen de Po
 **Negative**
 - No hay mecanismo para migrar una base de datos **existente** con datos reales de una versión de esquema a la siguiente sin intervención manual — el README ya advierte esto explícitamente para instalaciones limpias vs. bases con datos.
 - No hay rollback automático de un script aplicado a medias si falla en producción.
-- Si el proyecto necesitara múltiples entornos productivos persistentes (no solo "volumen nuevo por demo/tesis"), este enfoque dejaría de ser sostenible y habría que migrar a Flyway/Liquibase retomando los scripts existentes como baseline.
+- Si el proyecto necesitara múltiples entornos productivos persistentes (no solo "volumen nuevo por demo/staging"), este enfoque dejaría de ser sostenible y habría que migrar a Flyway/Liquibase retomando los scripts existentes como baseline — algo a resolver antes de un despliegue comercial con clientes en producción.
 
 ## Alternatives Considered
 

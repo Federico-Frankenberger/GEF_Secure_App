@@ -7,7 +7,7 @@ trabajo pendiente, no un comportamiento roto.
 
 | ID | Descripción | Impacto | Riesgo | Prioridad | Fecha objetivo |
 |---|---|---|---|---|---|
-| DT-01 | `mttrVerifiedDays` en `DashboardService` es un stub — solo `mttrDeclaradoDays` está implementado | El Dashboard solo muestra MTTR declarativo (lo que marca el analista), no verificado técnicamente | Bajo (funcional, pero podría presentarse como más riguroso de lo que es) | Alta — antes de una defensa/demo | No definida |
+| DT-01 | `mttrVerifiedDays` en `DashboardService` es un stub — solo `mttrDeclaradoDays` está implementado | El Dashboard solo muestra MTTR declarativo (lo que marca el analista), no verificado técnicamente | Bajo (funcional, pero podría presentarse como más riguroso de lo que es) | Alta — antes de una demo a cliente | No definida |
 | DT-02 | Cobertura de tests del frontend es mínima: solo existe `Assets.scan.test.tsx` | Regresiones de UI no se detectan automáticamente | Medio | Media | No definida |
 | DT-03 | Sin plan de retención/archivado para `VulnerabilityAudit` y `StateTransition` (append-only, crecen sin límite) | Crecimiento de tabla sin control en el largo plazo | Bajo a este tamaño de datos, crece con el tiempo | Baja | No definida |
 | DT-04 | No confirmado si `AUDITOR` tiene `@PreAuthorize` explícito en todos los endpoints o cae en el fallback "autenticado = accesible" | Posible acceso de lectura más amplio del previsto para ese rol | Medio | Alta | No definida |

@@ -9,7 +9,7 @@ Resuelta) con métricas de MTTR.
 
 | Campo | Valor |
 |---|---|
-| Estado | Proyecto de tesis — en desarrollo activo |
+| Estado | En desarrollo activo |
 | Versión | 2.0.0 (ver [CHANGELOG](CHANGELOG.md) para cambios posteriores sin release formal) |
 | Última actualización | 2026-08-22 |
 | Ambiente productivo | No — pensado para levantarse localmente vía Docker Compose |
@@ -69,7 +69,7 @@ disponibles:
 | pgAdmin | http://localhost:8080 | Login con las credenciales de `.env` |
 | PostgreSQL | localhost:5433 | Bases `security` y `n8n` (5433 en el host para no chocar con un Postgres nativo en 5432; el contenedor sigue escuchando en 5432 puertas adentro de la red de Docker) |
 
-Desde la Fase 3 el frontend pide login. Usuarios del seed, **solo para entorno local**
+El frontend pide login. Usuarios del seed, **solo para entorno local**
 (`init/05-auth.sql`):
 
 | Usuario | Password | Rol |
@@ -187,11 +187,9 @@ no incluye nada que no esté ya identificado como pendiente:
 
 ## Licencia
 
-Distribuido bajo licencia MIT — ver [`LICENSE`](LICENSE).
+Software propietario — todos los derechos reservados. Ver [`LICENSE`](LICENSE).
 
-## Autores
-
-Proyecto de tesis desarrollado por:
+## Equipo
 
 - Federico Frankenberger
 - Guadalupe Maricchiolo

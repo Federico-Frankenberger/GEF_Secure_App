@@ -41,14 +41,14 @@ Formalizadas como ADRs en `docs/adr/` — acá solo el resumen ejecutivo, ir a c
 ### SU-01 — MTTR mostrado es siempre "declarado", nunca "verificado"
 **Supuesto**: el KPI de MTTR en el Dashboard refleja cuándo el analista marcó RESUELTA, no una confirmación técnica independiente de que la vulnerabilidad efectivamente dejó de existir.
 **Origen**: `DashboardService` — `mttrVerifiedDays` está en el modelo pero el método que lo calcula devuelve `null` (stub).
-**Riesgo si es falso** (es decir, si se asumiera que sí está verificado): sobreestimar la confiabilidad del KPI en un contexto de tesis o auditoría externa.
+**Riesgo si es falso** (es decir, si se asumiera que sí está verificado): sobreestimar la confiabilidad del KPI frente a un cliente o en una auditoría externa.
 **Cómo validar**: leer `DashboardService.calcularMttr*` y confirmar que no hay lógica de verificación técnica implementada.
 
 ### SU-02 — El horario del scan automático global es 09:00, no 21:00
 **Supuesto**: el valor correcto y vigente es 09:00 (`Scan_Scheduler.triggerAtHour: 9` en `workflows/*.json`).
 **Origen**: discrepancia detectada entre el README (decía 21:00) y el workflow real; confirmado con el responsable del proyecto que 09:00 es el valor correcto, README corregido en consecuencia.
 **Riesgo si es falso**: si en producción se cambió manualmente a otra hora dentro de la UI de n8n sin re-exportar el JSON, el workflow versionado en git quedaría desactualizado.
-**Cómo validar**: inspeccionar la configuración real del workflow activo en la instancia de n8n corriendo (no solo el JSON en git) antes de una defensa o demo en vivo.
+**Cómo validar**: inspeccionar la configuración real del workflow activo en la instancia de n8n corriendo (no solo el JSON en git) antes de una demo en vivo.
 
 ### SU-03 — AUDITOR no tiene reglas `@PreAuthorize` explícitas en todos los endpoints
 **Supuesto**: AUDITOR obtiene acceso de solo lectura "por defecto" (cualquier usuario autenticado) en los endpoints que no restringen explícitamente por rol, más que por una regla `@PreAuthorize("hasRole('AUDITOR')")` dedicada en cada uno.

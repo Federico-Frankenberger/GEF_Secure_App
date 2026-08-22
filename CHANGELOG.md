@@ -4,7 +4,7 @@ Todos los cambios notables de este proyecto se documentan en este archivo.
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/) de forma
-laxa (proyecto académico, sin releases formales más allá de la marca `v2.0.0`).
+laxa (producto en etapa temprana, sin releases formales más allá de la marca `v2.0.0`).
 
 ## [Unreleased]
 

@@ -1,8 +1,8 @@
 # Seguridad
 
-GEF Secure es un proyecto académico (tesis). Este documento describe el modelo
-de seguridad implementado y sus límites conocidos, con honestidad sobre los
-trade-offs — varios son decisiones conscientes de alcance, no descuidos.
+Este documento describe el modelo de seguridad implementado en GEF Secure y
+sus límites conocidos, con honestidad sobre los trade-offs — varios son
+decisiones conscientes de alcance para esta etapa del producto, no descuidos.
 
 ## Autenticación
 
@@ -90,10 +90,9 @@ limitación reconocida, no un descuido oculto.
 
 ## Reporte de vulnerabilidades
 
-Este es un proyecto académico sin usuarios externos ni canal formal de
-disclosure de seguridad. Si encontrás un problema, el canal es directo con el
-autor del repositorio — no hay proceso de bug bounty ni SLA de respuesta
-comprometido.
+GEF Secure todavía no tiene un canal formal de disclosure de seguridad ni un
+programa de bug bounty. Si encontrás una vulnerabilidad, contactá directamente
+al equipo — no hay SLA de respuesta comprometido en esta etapa.
 
 ## Ver también
 

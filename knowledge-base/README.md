@@ -31,7 +31,7 @@ Para el "por qué" detrás de cada decisión, ir a `../docs/adr/`. Para el "cóm
 
 ## Resumen Ejecutivo
 
-GEF Secure cruza el inventario de activos contra GitHub Advisory DB y CISA KEV vía un pipeline externo en n8n, prioriza por criticidad de negocio, y gestiona el ciclo de vida de cada hallazgo con un modelo dual (detección técnica vs. triage analista) y cierre inspirado en VEX. Es un proyecto de tesis con varias decisiones de diseño documentadas explícitamente para su defensa — ver `docs/adr/`.
+GEF Secure cruza el inventario de activos contra GitHub Advisory DB y CISA KEV vía un pipeline externo en n8n, prioriza por criticidad de negocio, y gestiona el ciclo de vida de cada hallazgo con un modelo dual (detección técnica vs. triage analista) y cierre inspirado en VEX. Las decisiones de diseño relevantes están documentadas explícitamente — ver `docs/adr/`.
 
 ## KB generada en knowledge-base/
 

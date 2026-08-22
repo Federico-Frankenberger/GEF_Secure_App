@@ -65,7 +65,7 @@ credenciales ya resueltas (que igual se regeneran desde `.env` +
 ## RTO / RPO (objetivo, no medido)
 
 No se hicieron pruebas de restauración cronometradas. Como objetivo razonable
-para el alcance de este proyecto (demo/tesis, no producción crítica):
+para la etapa actual de este producto (demo/staging, todavía no en producción con clientes):
 
 - **RTO objetivo**: < 30 min (tiempo de `docker compose up -d` + restaurar el
   dump de Postgres).
@@ -78,5 +78,5 @@ para el alcance de este proyecto (demo/tesis, no producción crítica):
 - Automatizar el backup (cron externo o job de n8n) en vez de dejarlo manual.
 - Backup incremental/rotación con retención definida.
 - Probar una restauración completa de punta a punta al menos una vez antes de
-  cualquier demo/defensa formal, para validar que el procedimiento de arriba
+  cualquier demo formal a un cliente o inversor, para validar que el procedimiento de arriba
   realmente funciona.

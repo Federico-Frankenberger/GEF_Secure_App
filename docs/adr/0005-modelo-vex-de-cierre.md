@@ -17,7 +17,7 @@ Ninguna vulnerabilidad puede cerrarse (`triageStatus = RESUELTA`) sin un `outcom
 ## Consequences
 
 **Positive**
-- Da trazabilidad real para una auditoría o defensa de tesis: cada cierre queda respaldado por un motivo categorizado y una justificación en texto, no solo un timestamp.
+- Da trazabilidad real para una auditoría interna o de un cliente: cada cierre queda respaldado por un motivo categorizado y una justificación en texto, no solo un timestamp.
 - Distingue explícitamente "se arregló" (`MITIGADA`) de "no era un problema real acá" (`NO_APLICA`) de "sabemos que sigue siendo un problema y lo aceptamos por un plazo" (`RIESGO_ACEPTADO`) — tres situaciones con implicancias de riesgo muy distintas que un simple estado "Resuelta" ocultaría.
 - `riskAcceptedUntil` habilita, a futuro, alertar automáticamente cuando una aceptación de riesgo vence sin que el hallazgo se haya vuelto a evaluar (aunque esa alerta automática todavía no está implementada — es una extensión natural, no parte de esta decisión).
 

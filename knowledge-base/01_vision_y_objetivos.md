@@ -2,7 +2,7 @@
 
 ## Propósito del sistema
 
-GEF Secure es un sistema de gestión automatizada de vulnerabilidades: cruza el inventario de activos de una organización contra el GitHub Advisory Database y el catálogo CISA KEV (Known Exploited Vulnerabilities), prioriza los hallazgos según la criticidad de negocio del entorno donde vive cada activo, y gestiona el ciclo de vida de cada hallazgo (Detectada → En Análisis → Resuelta) con métricas de MTTR (Mean Time To Remediate). Es un proyecto de tesis universitaria: varias decisiones de diseño están documentadas explícitamente pensando en su defensa (ver `docs/adr/`).
+GEF Secure es un sistema de gestión automatizada de vulnerabilidades: cruza el inventario de activos de una organización contra el GitHub Advisory Database y el catálogo CISA KEV (Known Exploited Vulnerabilities), prioriza los hallazgos según la criticidad de negocio del entorno donde vive cada activo, y gestiona el ciclo de vida de cada hallazgo (Detectada → En Análisis → Resuelta) con métricas de MTTR (Mean Time To Remediate). Las decisiones de diseño relevantes están documentadas explícitamente (ver `docs/adr/`).
 
 ## Objetivos por actor
 

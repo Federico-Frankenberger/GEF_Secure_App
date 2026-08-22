@@ -32,4 +32,4 @@ El backend actúa como sistema de registro (system of record) y disparador de es
 ## Alternatives Considered
 
 - **Job programado dentro del backend** (`@Scheduled`, como ya existe para el watchdog de scans) que llamara directamente a las APIs de GitHub Advisory y CISA KEV: mantiene todo en un solo lenguaje/deploy, pero pierde la ventaja de iteración visual/rápida de n8n y obliga a construir a mano manejo de reintentos, notificación a Slack y orquestación de pasos que n8n ya resuelve.
-- **Cola de mensajes + workers Java** (ej. RabbitMQ + un servicio worker) para el pipeline de detección: más "propio" del stack pero significativamente más infraestructura y código para el alcance de un proyecto de tesis.
+- **Cola de mensajes + workers Java** (ej. RabbitMQ + un servicio worker) para el pipeline de detección: más "propio" del stack pero significativamente más infraestructura y código para la etapa actual del producto.

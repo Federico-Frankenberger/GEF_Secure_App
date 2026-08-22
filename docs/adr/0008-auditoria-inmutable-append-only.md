@@ -20,7 +20,7 @@ Ninguna de estas tablas se actualiza in-place: solo se insertan filas nuevas.
 ## Consequences
 
 **Positive**
-- Las métricas de MTTR y de reincidencia (ver `DashboardService`, `findAverageMttrDeclaredDays[ByPriority]`) se calculan sobre datos que no pudieron haber sido alterados retroactivamente — un requisito razonable para que esas métricas sean defendibles como parte de la tesis.
+- Las métricas de MTTR y de reincidencia (ver `DashboardService`, `findAverageMttrDeclaredDays[ByPriority]`) se calculan sobre datos que no pudieron haber sido alterados retroactivamente — un requisito razonable para que esas métricas sean defendibles frente a una auditoría o un cliente.
 - Permite responder preguntas forenses ("¿cuándo se detectó esto la primera vez y con qué severidad tenía entonces?") que un modelo puramente mutable no puede responder una vez que el dato cambió.
 - La escala de evidencia E0–E6 en `StateTransition` deja explícito no solo *qué* cambió sino *qué tan confiable* es esa transición, en vez de tratar todos los cambios de estado como igualmente verificados.
 

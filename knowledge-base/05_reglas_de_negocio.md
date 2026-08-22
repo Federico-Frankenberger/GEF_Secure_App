@@ -8,7 +8,7 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
 - **RN-VUL-02**: si un escaneo vuelve a detectar una vulnerabilidad que estaba en `detectionStatus=RESOLVED`, se reabre automáticamente y `triageStatus` se fuerza de nuevo a DETECTADA — el sistema no confía en que el analista se dé cuenta manualmente de la reaparición.
 - **RN-VUL-03**: `detectionStatus` (OPEN/RESOLVED) es responsabilidad exclusiva del sistema (según el último escaneo); `triageStatus` es responsabilidad exclusiva del analista. Nunca se sincronizan automáticamente uno con el otro salvo en la reapertura de RN-VUL-02 (ver ADR-0004).
 - **RN-VUL-04**: cerrar una vulnerabilidad (`triageStatus=RESUELTA`) con un `outcome` VEX exige justificación obligatoria (`justification` no vacío); si el outcome es RIESGO_ACEPTADO, además exige `acceptedBy` y `riskAcceptedUntil` (ver ADR-0005).
-- **RN-VUL-05**: cada cambio de `triageStatus` genera una fila en `StateTransition` (append-only, nunca se edita ni se borra) con evidencia asociada en escala E0–E6 — justificación: garantizar trazabilidad para auditoría externa/defensa de tesis (ver ADR-0008).
+- **RN-VUL-05**: cada cambio de `triageStatus` genera una fila en `StateTransition` (append-only, nunca se edita ni se borra) con evidencia asociada en escala E0–E6 — justificación: garantizar trazabilidad para auditoría externa o de cliente (ver ADR-0008).
 - **RN-VUL-06**: el `dueDate` de una vulnerabilidad se calcula a partir de su `priority` (no es editable manualmente) — a mayor prioridad, plazo más corto.
 
 ## Dominio: Escaneo (RN-SCAN)
