@@ -145,6 +145,61 @@ export interface VulnerabilityAudit {
   // Fase 6: desglose de variables de prioridad (JSON armado por n8n) + plazo calculado.
   priorityVariables?: string | null
   dueDate?: string | null
+  // Fase 8: el backend ya los mandaba (VulnerabilityAuditDTO.Response) pero el tipo del
+  // frontend nunca los declaró -- se descartaban en silencio al deserializar.
+  advisoryType?: string | null
+  vulnerableVersionRange?: string | null
+  // Rediseño de Vulnerabilidades (docs/bitacora/23-08-26): motivos legibles detrás de
+  // `priority` (CVSS, explotación conocida, CISA KEV, criticidad de activo, SLA vencido).
+  priorityReasons?: string[]
+}
+
+// Vista "Resumen" de Vulnerabilidades -- KPIs + atención inmediata + activos con mayor riesgo.
+export interface VulnerabilitySummary {
+  openCount: number
+  criticalCount: number
+  highCount: number
+  exploitedCount: number
+  slaOverdueCount: number
+  slaUpcomingCount: number
+  affectedAssetsCount: number
+  newLast7Days: number
+  resolvedLast7Days: number
+  attentionList: VulnerabilityAudit[]
+  topRiskAssets: { assetId: number; assetName: string; criticals: number; highs: number; total: number }[]
+  cisaKevCount: number
+  ghsaOnlyCount: number
+}
+
+export type SlaState = 'VENCIDO' | 'PROXIMO' | 'EN_PLAZO'
+
+// Vista "Análisis" de Vulnerabilidades -- evolución del backlog en ventana configurable
+// (7/30/90d, a diferencia del Dashboard general que es fijo a 30d), SLA y fuentes.
+export interface VulnerabilityAnalysis {
+  days: number
+  trend: { date: string; detectadas: number; resueltas: number }[]
+  slaOverdueCount: number
+  slaUpcomingCount: number
+  slaOnTrackCount: number
+  cisaKevCount: number
+  ghsaOnlyCount: number
+}
+
+export interface VulnerabilitySearchParams {
+  priority?: string
+  triageStatus?: string
+  assetId?: number
+  softwareComponentId?: number
+  assignedToUserId?: number
+  exploited?: boolean
+  cisaKev?: boolean
+  slaState?: SlaState
+  search?: string
+  fromDate?: string
+  toDate?: string
+  sortBy?: 'priority' | 'cvss' | 'age' | 'due' | 'recent'
+  page?: number
+  size?: number
 }
 
 // Fase 5: vocabulario VEX -- solo aplica cuando status = RESUELTA. undefined/null = cierre

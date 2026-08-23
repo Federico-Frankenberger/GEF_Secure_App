@@ -6,6 +6,7 @@ import type {
   Asset, AssetRequest,
   SoftwareComponent, SoftwareComponentRequest,
   VulnerabilityAudit, VulnerabilityRequest, StatusUpdate,
+  VulnerabilitySummary, VulnerabilitySearchParams, VulnerabilityAnalysis,
   User, UserRequest,
   UserAssetAssignment, UserAssetAssignmentRequest,
   DeletedAsset,
@@ -162,6 +163,10 @@ export const vulnApi = {
   delete:       (id: number)      => http.delete(`/vulnerabilities/${id}`),
   scanResult:   (params: { since: string; assetId?: number; environmentId?: number; hostAssetId?: number }) =>
     http.get<VulnerabilityAudit[]>('/vulnerabilities/scan-result', { params }),
+  summary:      () => http.get<VulnerabilitySummary>('/vulnerabilities/summary'),
+  search:       (params: VulnerabilitySearchParams) =>
+    http.get<PageResponse<VulnerabilityAudit>>('/vulnerabilities/search', { params }),
+  analysis:     (days: number) => http.get<VulnerabilityAnalysis>('/vulnerabilities/analysis', { params: { days } }),
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
