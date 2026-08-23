@@ -35,7 +35,7 @@ dependencies {
 
 	// Generacion de informes en PDF (seccion Informes) -- linea 1.3.x, paquete
 	// clasico com.lowagie.text (OpenPDF 3.x lo migro a org.openpdf y no es compatible).
-	implementation 'com.github.librepdf:openpdf:1.3.30'
+	implementation 'com.github.librepdf:openpdf:1.4.2'
 
 	// JWT (Fase 3 - autenticacion)
 	implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
