@@ -68,6 +68,12 @@ public class ScanReport {
     @JoinColumn(name = "triggered_by")
     private User triggeredBy;
 
+    // Marca explicita de origen -- triggered_by IS NULL no alcanza: hay filas
+    // viejas de datos de prueba con triggered_by sin completar que no son
+    // automaticas. Solo ScanService.completeAutomatic() la pone en true.
+    @Column(name = "is_automatic_scan", nullable = false)
+    private boolean automaticScan;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "software_component_id")
     private SoftwareComponent softwareComponent;

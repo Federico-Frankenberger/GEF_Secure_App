@@ -7,16 +7,11 @@ import { useAuth } from '../contexts/AuthContext'
 import PageHeader from '../components/PageHeader'
 import Table, { Column } from '../components/Table'
 import Modal from '../components/Modal'
+import { CRITICALITY_BADGE } from '../constants/badges'
 
 const EMPTY_USER: UserRequest = { username: '', fullName: '', email: '', role: 'AUDITOR', password: '' }
 const EMPTY_ENV: EnvironmentRequest = { name: '', businessCriticality: 'BAJA', description: '' }
 const CRITICALITY_OPTIONS = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA']
-const CRITICALITY_BADGE: Record<string, string> = {
-  CRITICA: 'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
-  ALTA:    'bg-[#f95c5c]/15 text-[#f95c5c] border border-[#f95c5c]/30',
-  MEDIA:   'bg-[#f9f15c]/15 text-yellow-200 border border-[#f9f15c]/30',
-  BAJA:    'bg-[#44a024]/15 text-[#44a024] border border-[#44a024]/30',
-}
 type Tab = 'users' | 'assignments' | 'errors' | 'environments' | 'assetTypes' | 'ecosystems'
 
 export default function Settings() {
@@ -107,15 +102,25 @@ export default function Settings() {
   }, [])
 
   const isAdmin = currentUser?.role === 'ADMIN'
+  // P-11 (auditoría UX/UI): antes esta sección entera (incluidos los Entornos, que no
+  // tienen ninguna otra vista en la app) era ADMIN-only -- un SECURITY_ANALYST/AUDITOR no
+  // podía ver ni la lista de entornos ni su criticidad de negocio en ningún lugar dedicado.
+  const canViewEnvironments = isAdmin || currentUser?.role === 'SECURITY_ANALYST' || currentUser?.role === 'AUDITOR'
 
   useEffect(() => {
     if (!isAdmin) return
     loadUsers()
     loadErrors()
-    loadEnvironments()
     loadAssetTypes()
     loadEcosystems()
-  }, [isAdmin, loadUsers, loadErrors, loadEnvironments, loadAssetTypes, loadEcosystems])
+  }, [isAdmin, loadUsers, loadErrors, loadAssetTypes, loadEcosystems])
+
+  // Entornos: lectura para ADMIN/SECURITY_ANALYST/AUDITOR, escritura solo ADMIN (ver
+  // gating de los botones de acción en environmentColumns y del botón "Nuevo Entorno").
+  useEffect(() => {
+    if (!canViewEnvironments) return
+    loadEnvironments()
+  }, [canViewEnvironments, loadEnvironments])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -361,15 +366,16 @@ export default function Settings() {
       render: v => <span className={`badge ${CRITICALITY_BADGE[String(v)] ?? 'bg-slate-700 text-slate-300'}`}>{String(v)}</span>,
     },
     { key: 'description', label: 'Descripción', render: v => <span className="text-xs text-slate-400 line-clamp-2 max-w-xs">{v ? String(v) : '—'}</span> },
-    {
+    // Escritura exclusiva de ADMIN -- SECURITY_ANALYST/AUDITOR ven la tabla sin esta columna.
+    ...(isAdmin ? [{
       key: 'id', label: '',
-      render: (v, row) => (
+      render: (v: unknown, row: Environment) => (
         <div className="flex gap-1">
-          <button onClick={() => openEditEnv(row)} className="btn-ghost !py-1 !px-2"><Pencil size={13} /></button>
-          <button onClick={() => handleDeleteEnv(Number(v))} className="btn-ghost !py-1 !px-2 text-red-400"><Trash2 size={13} /></button>
+          <button onClick={() => openEditEnv(row)} className="btn-ghost !py-1 !px-2" aria-label={`Editar entorno ${row.name}`}><Pencil size={13} /></button>
+          <button onClick={() => handleDeleteEnv(Number(v))} className="btn-ghost !py-1 !px-2 text-red-400" aria-label={`Eliminar entorno ${row.name}`}><Trash2 size={13} /></button>
         </div>
       ),
-    },
+    }] : []),
   ]
 
   const assetTypeColumns: Column<AssetType>[] = [
@@ -397,6 +403,20 @@ export default function Settings() {
       ),
     },
   ]
+
+  if (!isAdmin && canViewEnvironments) {
+    // P-11: SECURITY_ANALYST/AUDITOR no entran a "Configuración" completa, pero sí a una
+    // vista de solo lectura de Entornos -- antes esto no existía en ningún lado para ellos.
+    return (
+      <div className="animate-fade-in">
+        <PageHeader title="Entornos" subtitle="Criticidad de negocio por entorno (solo lectura)" />
+        <p className="text-sm text-slate-500 mb-4">{environments.length} entorno(s)</p>
+        <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
+          <Table columns={environmentColumns} data={environments} loading={loadEnv} emptyMessage="No hay entornos" />
+        </div>
+      </div>
+    )
+  }
 
   if (!isAdmin) {
     return (

@@ -58,6 +58,16 @@ public class ScanController {
                 .orElse(ResponseEntity.noContent().build());
     }
 
+    @GetMapping("/scan-reports/latest-automatic")
+    @Operation(summary = "Último escaneo automático diario (Scan_Scheduler de n8n; triggered_by IS NULL)")
+    public ResponseEntity<ScanReportDTO> latestAutomaticReport() {
+        return scanReportRepository.findLatestAutomatic()
+                .filter(this::isInScope)
+                .map(ScanReportDTO::from)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
+    }
+
     @GetMapping("/scan-reports")
     @Operation(summary = "Historial de escaneos paginado, con filtros opcionales por tipo/objetivo/código/rango de fecha")
     public ResponseEntity<Page<ScanReportDTO>> history(

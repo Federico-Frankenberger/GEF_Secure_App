@@ -131,7 +131,13 @@ services:
 
   # ── Frontend GEF Secure ──────────────────────────────────────────────────────
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # P-10: este compose es el entorno local/demo -- se habilitan a proposito
+        # los accesos rapidos de Login.tsx. Un build real de "producto" no debe
+        # pasar este ARG (o pasarlo en false).
+        VITE_ENABLE_DEMO_LOGIN: "true"
     container_name: gef_frontend
     restart: unless-stopped
     ports:

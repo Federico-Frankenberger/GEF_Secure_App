@@ -9,6 +9,7 @@ import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import { useAuth } from '../contexts/AuthContext'
 import { downloadBlob } from '../utils/downloadFile'
+import { PRIORITY_LABEL } from '../constants/badges'
 
 const COLUMNS: { id: VulnStatus; label: string; color: string }[] = [
   { id: 'DETECTADA',   label: 'Detectadas',  color: 'border-red-500/40    text-red-400'     },
@@ -163,21 +164,28 @@ const handleSave = async () => {
     }
   }
 
+  // P-09 (auditoria UX/UI): antes window.confirm() nativo -- no se puede estilizar y
+  // rompe la identidad visual justo en la accion mas sensible (borrar).
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Eliminar registro?')) return
+    setDeleting(true)
     try {
       await vulnApi.delete(id)
       toast.success('Eliminado')
+      setConfirmDeleteId(null)
       setSelected(null)
       load()
     } catch { toast.error('Error al eliminar') }
+    finally { setDeleting(false) }
   }
 
   return (
     <div className="animate-fade-in px-4">
       <PageHeader
-        title="Tablero de Auditoría"
-        subtitle="Gestión y remediación de vulnerabilidades"
+        title="Vulnerabilidades"
+        subtitle="Tablero de auditoría — gestión y remediación"
         actions={
           <div className="flex items-center gap-2">
             {/* SELECTOR DE FECHA CON OPCIÓN DE LIMPIAR */}
@@ -217,13 +225,24 @@ const handleSave = async () => {
               className="bg-surface-800 text-xs text-white px-3 py-1.5 rounded-lg border border-white/5 outline-none cursor-pointer hover:bg-surface-700 transition-colors"
             >
               <option value="TODAS">Todas las criticidades</option>
-              <option value="CRITICAL">Critical</option>
-              <option value="HIGH">High</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="LOW">Low</option>
+              <option value="CRITICAL">{PRIORITY_LABEL.CRITICAL}</option>
+              <option value="HIGH">{PRIORITY_LABEL.HIGH}</option>
+              <option value="MEDIUM">{PRIORITY_LABEL.MEDIUM}</option>
+              <option value="LOW">{PRIORITY_LABEL.LOW}</option>
             </select>
 
-            <button onClick={load} disabled={loading} className="btn-ghost p-2 rounded-lg bg-surface-800 border border-white/5">
+            {/* P-16 (auditoria UX/UI): antes solo la fecha tenia forma de limpiarse sola --
+                Estado y Criticidad habia que resetearlos campo por campo. */}
+            {(filterDate || filterStatus !== 'TODOS' || filterPriority !== 'TODAS') && (
+              <button
+                onClick={() => { setFilterDate(''); setFilterStatus('TODOS'); setFilterPriority('TODAS') }}
+                className="btn-ghost text-xs px-3 py-1.5 rounded-lg bg-surface-800 border border-white/5"
+              >
+                Limpiar filtros
+              </button>
+            )}
+
+            <button onClick={load} disabled={loading} className="btn-ghost p-2 rounded-lg bg-surface-800 border border-white/5" aria-label="Recargar tablero">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
@@ -241,7 +260,7 @@ const handleSave = async () => {
         </div>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {COLUMNS.map(col => (
               <div key={col.id} className="flex flex-col min-h-[70vh]">
                 <div className={`flex items-center justify-between mb-3 pb-2 border-b-2 ${col.color}`}>
@@ -281,6 +300,14 @@ const handleSave = async () => {
       <Modal title="Gestión de Vulnerabilidad" open={!!selected} onClose={() => setSelected(null)} size="lg">
         {selected && (
           <div className="space-y-4">
+            {/* P-12 (auditoria UX/UI): contexto tecnico + descripcion de la advisory
+                colapsados por defecto -- antes se renderizaban siempre expandidos junto
+                con todo el bloque de edicion, alargando el modal innecesariamente. */}
+            <details className="group" open={false}>
+              <summary className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer select-none hover:text-slate-300 transition-colors">
+                Ver contexto técnico y descripción ▾
+              </summary>
+              <div className="mt-2 space-y-2">
             {/* Contexto técnico: de solo lectura, todo lo que ya sabemos del hallazgo */}
             <div className="bg-surface-900 border border-white/5 rounded-lg p-3 font-mono text-[11px] space-y-1.5 shadow-inner">
               <p className="flex items-center gap-2 flex-wrap">
@@ -356,6 +383,8 @@ const handleSave = async () => {
                 </div>
               ) : null}
             </div>
+              </div>
+            </details>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -507,7 +536,7 @@ const handleSave = async () => {
 
             <div className="flex justify-between items-center pt-3 border-t border-white/5">
               {canDelete && (
-                <button onClick={() => handleDelete(selected.id)} className="text-[10px] uppercase font-bold text-red-500 hover:text-red-400 transition-colors">Eliminar</button>
+                <button onClick={() => setConfirmDeleteId(selected.id)} className="text-[10px] uppercase font-bold text-red-500 hover:text-red-400 transition-colors">Eliminar</button>
               )}
               <div className="flex gap-2 ml-auto">
                 {(selected.cveId || selected.ghsaId) && (
@@ -525,6 +554,23 @@ const handleSave = async () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* P-09: confirmacion destructiva propia en vez de window.confirm() */}
+      <Modal title="Eliminar registro" open={confirmDeleteId !== null} onClose={() => setConfirmDeleteId(null)} size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">Esta acción no se puede deshacer. Se elimina el registro de auditoría de esta vulnerabilidad.</p>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setConfirmDeleteId(null)} className="btn-ghost text-xs px-4">Cancelar</button>
+            <button
+              onClick={() => confirmDeleteId != null && handleDelete(confirmDeleteId)}
+              disabled={deleting}
+              className="btn-danger text-xs px-4"
+            >
+              {deleting ? 'Eliminando…' : 'Eliminar'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

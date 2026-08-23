@@ -17,6 +17,7 @@ trabajo pendiente, no un comportamiento roto.
 | DT-08 | Sin rate limiting en los endpoints del backend | Expuesto a abuso/fuerza bruta sin límite de intentos | Bajo a este tamaño de usuarios, real en producción | Baja | No definida |
 | DT-09 | No verificado que la instancia de n8n en producción/demo esté realmente configurada a las 09:00 (el JSON en git sí lo está, ver `docs/adr` y `04-n8n-pipeline.md`) | Expectativa operativa incorrecta si la UI fue cambiada manualmente sin re-exportar | Bajo | Alta — antes de confiar en el dato para una demo | No definida |
 | DT-10 | Sin pipeline de CI/CD — tests solo corren manualmente | Nada bloquea un merge con tests rotos | Bajo (proyecto de un solo autor) | Baja | No definida |
+| DT-11 | El vínculo `vulnerabilities_audit.scan_id` de un escaneo automático (`ScanService.completeAutomatic`) se resuelve por ventana de tiempo (60 min desde `executedAt`), no por un `scan_id` real de punta a punta como en el flujo manual | Si una corrida automática tarda más de 60 min entre `Persist_Audit_Findings` y `Persist_Scan_Statistics`, algunos hallazgos quedarían sin vincular a ese `ScanReport` (igual entran al sistema, solo que no vinculados a ese scan puntual). Además, los hallazgos automáticos insertados antes de este fix quedan con `scan_id NULL` para siempre — no hay backfill retroactivo | Bajo (ventana generosa vs. duración típica observada) | Baja | No definida |
 
 ## Cómo usar este archivo
 

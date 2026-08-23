@@ -110,6 +110,47 @@ public class ScanService {
             String systemStatus, String reportMessage, String environmentBreakdown) {
     }
 
+    private static final long AUTOMATIC_LINK_WINDOW_MINUTES = 60;
+
+    /** Contraparte de start()+complete() para el escaneo disparado por Scan_Scheduler (sin
+     *  scanId, sin usuario) -- antes WebhookController descartaba este payload sin persistir
+     *  nada. triggeredBy queda null a proposito: es la marca de "automatico", no un dato
+     *  faltante (ver ScanReportRepository.findLatestAutomatic). startedAt=executedAt=now()
+     *  porque no existe un evento de "inicio" real para este camino (a diferencia de start(),
+     *  que crea el ScanReport ANTES de disparar n8n) -- se documenta como aproximacion conocida. */
+    @Transactional
+    public ScanReport completeAutomatic(ScanCompletionPayload payload) {
+        LocalDateTime now = LocalDateTime.now();
+        ScanReport scan = ScanReport.builder()
+                .startedAt(now)
+                .executedAt(now)
+                .status("COMPLETED")
+                .targetType("GLOBAL")
+                .targetName("TODOS")
+                .triggeredBy(null)
+                .automaticScan(true)
+                .totalDetected(payload.totalDetected())
+                .audited(payload.audited())
+                .ignored(payload.ignored())
+                .criticals(payload.criticals())
+                .highs(payload.highs())
+                .mediums(payload.mediums())
+                .lows(payload.lows())
+                .systemStatus(payload.systemStatus())
+                .reportMessage(payload.reportMessage())
+                .environmentBreakdown(payload.environmentBreakdown())
+                .build();
+        scan = scanReportRepository.save(scan);
+        scan.setPublicCode(generatePublicCode(scan));
+        scan = scanReportRepository.save(scan);
+
+        // Orden importa: applyLifecycle() lee los hallazgos de este scan por scan_report_id,
+        // asi que primero hay que vincular los huerfanos (scan_id NULL) que dejo n8n.
+        vulnerabilityAuditService.linkOrphanFindings(scan.getId(), now.minusMinutes(AUTOMATIC_LINK_WINDOW_MINUTES));
+        vulnerabilityAuditService.applyLifecycle(scan);
+        return scan;
+    }
+
     // Watchdog (docs/22-08-26/AUDITORIA_END_TO_END.md): sin esto no habia ningun @Scheduled
     // en todo el backend -- un ScanReport que se queda en RUNNING para siempre (n8n cae, el
     // webhook de cierre nunca llega) no tenia nada que lo marcara como sospechoso, ni una

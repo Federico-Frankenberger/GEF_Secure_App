@@ -1,10 +1,15 @@
-import { ReactNode, useEffect, useState } from 'react'
-import { ChevronRight, ChevronLeft } from 'lucide-react'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 export interface Column<T> {
   key: keyof T | string
   label: string
   render?: (value: unknown, row: T) => ReactNode
+  /** P-06 (auditoría UX/UI): ninguna tabla permitía ordenar columnas -- el orden
+   *  quedaba fijo a lo que decidiera el backend. Ordena sobre los datos ya
+   *  presentes en `data` (la página actual en modo servidor, el dataset
+   *  completo en modo cliente) -- no dispara un nuevo pedido al backend. */
+  sortable?: boolean
 }
 
 interface Props<T> {
@@ -31,11 +36,36 @@ export default function Table<T extends { id?: number | string }>({
 }: Props<T>) {
   const serverMode = pageSize != null && onPageChange != null
   const [clientPage, setClientPage] = useState(0)
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   // Modo cliente: si cambia el dataset (nueva búsqueda/filtro/recarga) hay que
   // volver a la primera página -- si no, se puede quedar "varado" en una página
   // que ya no existe.
   useEffect(() => { if (pageSize != null && !serverMode) setClientPage(0) }, [data, pageSize, serverMode])
+
+  const sortedData = useMemo(() => {
+    if (!sortKey) return data
+    const withIndex = data.map((row, i) => ({ row, i }))
+    withIndex.sort((a, b) => {
+      const av = (a.row as Record<string, unknown>)[sortKey]
+      const bv = (b.row as Record<string, unknown>)[sortKey]
+      if (av == null && bv == null) return a.i - b.i
+      if (av == null) return 1
+      if (bv == null) return -1
+      let cmp: number
+      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv
+      else cmp = String(av).localeCompare(String(bv), 'es', { numeric: true })
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return withIndex.map(w => w.row)
+  }, [data, sortKey, sortDir])
+
+  const toggleSort = (key: string) => {
+    if (sortKey !== key) { setSortKey(key); setSortDir('asc') }
+    else if (sortDir === 'asc') setSortDir('desc')
+    else { setSortKey(null); setSortDir('asc') }
+  }
 
   if (loading) {
     return (
@@ -48,7 +78,7 @@ export default function Table<T extends { id?: number | string }>({
   const page = serverMode ? (serverPage ?? 0) : clientPage
   const total = serverMode ? (totalItems ?? 0) : data.length
   const totalPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1
-  const pageData = pageSize && !serverMode ? data.slice(page * pageSize, (page + 1) * pageSize) : data
+  const pageData = pageSize && !serverMode ? sortedData.slice(page * pageSize, (page + 1) * pageSize) : sortedData
 
   const goToPage = (target: number) => {
     const clamped = Math.min(Math.max(target, 0), totalPages - 1)
@@ -67,7 +97,22 @@ export default function Table<T extends { id?: number | string }>({
                   key={String(col.key)}
                   className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap"
                 >
-                  {col.label}
+                  {col.sortable ? (
+                    <button
+                      onClick={() => toggleSort(String(col.key))}
+                      className="flex items-center gap-1 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 rounded"
+                      aria-label={`Ordenar por ${col.label}`}
+                    >
+                      {col.label}
+                      {sortKey !== String(col.key) ? (
+                        <ChevronsUpDown size={12} className="text-slate-600" />
+                      ) : sortDir === 'asc' ? (
+                        <ChevronUp size={12} className="text-brand-400" />
+                      ) : (
+                        <ChevronDown size={12} className="text-brand-400" />
+                      )}
+                    </button>
+                  ) : col.label}
                 </th>
               ))}
               {onRowClick && <th className="w-8 px-2" aria-hidden />}

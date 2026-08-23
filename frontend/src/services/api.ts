@@ -194,6 +194,10 @@ export const scanApi = {
       params: { targetType, targetName },
       validateStatus: s => s === 200 || s === 204,
     }),
+  latestAutomatic: () =>
+    http.get<ScanReport>('/scan-reports/latest-automatic', {
+      validateStatus: s => s === 200 || s === 204,
+    }),
   history: (params: { targetType?: string; targetName?: string; publicCode?: string; from?: string; to?: string; page?: number; size?: number }) =>
     http.get<PageResponse<ScanReport>>('/scan-reports', { params }),
   reportVulnerabilities: (id: number) =>

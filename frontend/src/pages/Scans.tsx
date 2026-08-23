@@ -1,55 +1,19 @@
-import { useEffect, useState, useCallback, useMemo, ReactNode } from 'react'
-import { GitCompare, RefreshCw, ScanLine, Search, ChevronDown, Download } from 'lucide-react'
+import { useEffect, useState, useCallback, ReactNode } from 'react'
+import { GitCompare, RefreshCw, ScanLine, Search, ChevronDown, Download, CalendarClock, ShieldAlert, ShieldCheck, Bug, AlertTriangle, Info, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { softwareComponentApi, environmentApi, assetApi, vulnApi, scanApi, reportApi } from '../services/api'
-import type { SoftwareComponent, Environment, Asset, VulnerabilityAudit, ScanReport, ScanComparison, ScanTargetType } from '../types'
+import type { SoftwareComponent, Environment, Asset, VulnerabilityAudit, ScanReport, ScanComparison } from '../types'
 import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import Table, { Column } from '../components/Table'
 import Modal from '../components/Modal'
+import GroupedVulnerabilityResult, { MODE_LABEL, type ScanMode } from '../components/GroupedVulnerabilityResult'
 import { useScanPolling } from '../hooks/useScanPolling'
 import { useAuth } from '../contexts/AuthContext'
 import { downloadBlob } from '../utils/downloadFile'
+import { PRIORITY_BADGE, PRIORITY_LABEL, STATUS_BADGE, SCAN_STATUS_BADGE, SCAN_STATUS_LABEL } from '../constants/badges'
 
-const PRIORITY_BADGE: Record<string, string> = {
-  CRITICAL: 'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
-  HIGH:     'bg-[#f95c5c]/15 text-[#f95c5c] border border-[#f95c5c]/30',
-  MEDIUM:   'bg-[#f9f15c]/15 text-yellow-200 border border-[#f9f15c]/30',
-  LOW:      'bg-[#44a024]/15 text-[#44a024] border border-[#44a024]/30',
-}
-const STATUS_BADGE: Record<string, string> = {
-  DETECTADA:   'bg-slate-600/30 text-slate-300 border border-slate-500/30',
-  EN_ANALISIS: 'bg-amber-600/20 text-amber-400 border border-amber-600/30',
-  RESUELTA:    'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30',
-}
-// M-NUEVO-1 (docs/20-08-26/AUDITORIA_END_TO_END_2.md): el Historial solo mostraba
-// systemStatus (salud del pipeline, ej. "✅ ESTABLE"), no el status real del ScanReport --
-// un escaneo FAILED/PARTIALLY_COMPLETED era indistinguible de uno COMPLETED normal. Esta
-// columna complementa a systemStatus, no la reemplaza.
-const SCAN_STATUS_BADGE: Record<string, string> = {
-  COMPLETED:            'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30',
-  RUNNING:              'bg-amber-600/20 text-amber-400 border border-amber-600/30',
-  FAILED:               'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
-  PARTIALLY_COMPLETED:  'bg-[#f9f15c]/15 text-yellow-200 border border-[#f9f15c]/30',
-}
-const SCAN_STATUS_LABEL: Record<string, string> = {
-  COMPLETED: 'Completado', RUNNING: 'Corriendo', FAILED: 'Falló', PARTIALLY_COMPLETED: 'Parcial',
-}
-// Menor índice = más severo. Cualquier prioridad no reconocida cae al final.
-const PRIORITY_RANK = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
-const rank = (p: string) => {
-  const i = PRIORITY_RANK.indexOf(p)
-  return i === -1 ? PRIORITY_RANK.length : i
-}
-
-type Tab = 'escaneos' | 'historial'
-type ScanMode = Extract<ScanTargetType, 'ACTIVO' | 'HOST' | 'ENTORNO' | 'GLOBAL'>
-
-const MODE_LABEL: Record<ScanMode, string> = {
-  ACTIVO: 'Componente',
-  HOST: 'Activo',
-  ENTORNO: 'Entorno',
-  GLOBAL: 'Global',
-}
+type Tab = 'automatico' | 'manual' | 'historial'
 const EMPTY_RESULT_MESSAGE: Record<ScanMode, string> = {
   ACTIVO: 'No se encontraron vulnerabilidades para este componente.',
   HOST: 'No se encontraron vulnerabilidades para este activo.',
@@ -63,100 +27,6 @@ const NO_SCAN_YET_MESSAGE = 'Todavía no se disparó ningún escaneo. Elegí un 
 // toast que desaparece solo.
 const SCANNING_MESSAGE = 'Escaneando… esto puede tardar hasta un minuto y medio para alcances grandes.'
 const TIMED_OUT_MESSAGE = 'El escaneo no respondió a tiempo. Puede seguir corriendo en segundo plano — revisá el Historial en unos minutos.'
-
-interface GroupedResult {
-  label: string
-  count: number
-  topPriority: string
-}
-
-type GroupField = 'environmentName' | 'asset' | 'componentName'
-
-/** Agrupa por `field` (segun el nivel de la jerarquia) -- ver GroupedVulnerabilityResult. */
-function groupVulns(vulns: VulnerabilityAudit[], field: GroupField, fallback: string): GroupedResult[] {
-  const map = new Map<string, GroupedResult>()
-  for (const v of vulns) {
-    const key = v[field] ?? fallback
-    const entry = map.get(key) ?? { label: key, count: 0, topPriority: v.priority ?? '' }
-    entry.count += 1
-    if (rank(v.priority ?? '') < rank(entry.topPriority)) entry.topPriority = v.priority ?? ''
-    map.set(key, entry)
-  }
-  return Array.from(map.values()).sort((a, b) => rank(a.topPriority) - rank(b.topPriority))
-}
-
-const GROUP_LEVEL_LABEL: Record<GroupField, string> = { environmentName: 'Entorno', asset: 'Activo', componentName: 'Componente' }
-const GROUP_LEVEL_FALLBACK: Record<GroupField, string> = { environmentName: 'Sin entorno', asset: 'Sin activo', componentName: 'Sin componente' }
-
-/** Jerarquia de agrupamiento por modo, de mas general a mas especifico:
- *  ACTIVO (un solo componente) -- sin niveles, detalle directo.
- *  HOST (un activo, varios componentes) -- 1 nivel: Componente.
- *  ENTORNO (un entorno fijo, varios activos) -- 2 niveles: Activo -> Componente.
- *  GLOBAL (varios entornos, cada uno con varios activos) -- 3 niveles:
- *  Entorno -> Activo -> Componente. `path` guarda el valor elegido en cada nivel a
- *  medida que el usuario hace drill-down; cuando path.length llega a levels.length
- *  se muestra el detalle plano de vulnerabilidades ya filtrado por todos los niveles
- *  elegidos. */
-function GroupedVulnerabilityResult({ vulns, mode, emptyMessage, vulnColumns }: {
-  vulns: VulnerabilityAudit[]
-  mode: ScanMode
-  emptyMessage: string
-  vulnColumns: Column<VulnerabilityAudit>[]
-}) {
-  const [path, setPath] = useState<string[]>([])
-  const levels: GroupField[] = useMemo(() => {
-    if (mode === 'HOST') return ['componentName']
-    if (mode === 'ENTORNO') return ['asset', 'componentName']
-    if (mode === 'GLOBAL') return ['environmentName', 'asset', 'componentName']
-    return []
-  }, [mode])
-
-  // Si cambia el resultado (otro reporte del historial, o un escaneo nuevo) el
-  // drill-down previo ya no es valido -- se vuelve al nivel mas alto.
-  useEffect(() => { setPath([]) }, [vulns])
-
-  const filtered = useMemo(
-    () => path.reduce((acc, value, i) => acc.filter(v => (v[levels[i]] ?? GROUP_LEVEL_FALLBACK[levels[i]]) === value), vulns),
-    [vulns, path, levels]
-  )
-
-  const backButton = path.length > 0 && (
-    <div className="px-4 py-2 flex items-center justify-between border-b border-surface-600">
-      <p className="text-sm font-medium text-white">{path.join(' › ')}</p>
-      <button onClick={() => setPath(p => p.slice(0, -1))} className="btn-ghost !py-1">← Volver</button>
-    </div>
-  )
-
-  if (path.length === levels.length) {
-    return (
-      <div>
-        {backButton}
-        <Table columns={vulnColumns} data={filtered} emptyMessage={path.length ? 'Sin resultados' : emptyMessage} pageSize={20} />
-      </div>
-    )
-  }
-
-  const field = levels[path.length]
-  const grouped = groupVulns(filtered, field, GROUP_LEVEL_FALLBACK[field])
-  const groupedColumns: Column<GroupedResult>[] = [
-    { key: 'label', label: GROUP_LEVEL_LABEL[field] },
-    { key: 'count', label: 'Vulnerabilidades', render: v => <span className="font-mono text-xs">{String(v)}</span> },
-    { key: 'topPriority', label: 'Severidad más alta', render: v => <span className={`badge ${PRIORITY_BADGE[String(v)] ?? ''}`}>{String(v) || 'SIN PRIORIDAD'}</span> },
-  ]
-
-  return (
-    <div>
-      {backButton}
-      <Table
-        columns={groupedColumns}
-        data={grouped}
-        emptyMessage={emptyMessage}
-        keyField="label"
-        onRowClick={row => setPath(p => [...p, row.label])}
-      />
-    </div>
-  )
-}
 
 /** Sección desplegable del comparador de escaneos (Nuevas/Persistentes/Resueltas/Cambios
  *  de severidad) -- colapsada por defecto para no tirar las 4 tablas de una. */
@@ -183,7 +53,7 @@ export default function Scans() {
   const { user } = useAuth()
   const canScan = user?.role === 'ADMIN' || user?.role === 'SECURITY_ANALYST'
 
-  const [tab, setTab] = useState<Tab>('escaneos')
+  const [tab, setTab] = useState<Tab>('automatico')
   const [components, setComponents] = useState<SoftwareComponent[]>([])
   const [environments, setEnvironments] = useState<Environment[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
@@ -194,7 +64,60 @@ export default function Scans() {
     assetApi.getAll().then(r => setAssets(r.data)).catch(() => toast.error('Error al cargar activos'))
   }, [])
 
-  // ── Tab "Escaneos" ────────────────────────────────────────────────────────
+  // ── Tab "Automático" (default) ───────────────────────────────────────────
+  const [autoLoading, setAutoLoading] = useState(true)
+  const [autoReport, setAutoReport] = useState<ScanReport | null>(null)
+  const [autoVulns, setAutoVulns] = useState<VulnerabilityAudit[] | null>(null)
+  const [autoLoadingVulns, setAutoLoadingVulns] = useState(false)
+  // Sección 9 del prompt original (docs/bitacora/22-08-26/prompt_seccion_escaneo_automatico_diario.md):
+  // "que tenga especial relevancia... ¿qué vulnerabilidades nuevas aparecieron en este escaneo?" --
+  // pedía explícitamente reutilizar la lógica existente si ya resolvía el problema (no
+  // desarrollar una paralela). El comparador de Historial (scanApi.compare) ya calcula
+  // exactamente "nuevas en B" entre dos escaneos; acá se reutiliza contra el GLOBAL previo.
+  const [autoComparison, setAutoComparison] = useState<ScanComparison | null>(null)
+  const [autoComparisonLoading, setAutoComparisonLoading] = useState(false)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (tab !== 'automatico') return
+    setAutoLoading(true)
+    scanApi.latestAutomatic()
+      .then(({ status, data }) => setAutoReport(status === 200 && data ? data : null))
+      .catch(() => toast.error('Error al cargar el escaneo automático'))
+      .finally(() => setAutoLoading(false))
+  }, [tab])
+
+  useEffect(() => {
+    if (!autoReport) return
+    setAutoLoadingVulns(true)
+    scanApi.reportVulnerabilities(autoReport.id)
+      .then(r => setAutoVulns(r.data))
+      .catch(() => toast.error('Error al cargar las vulnerabilidades de este escaneo'))
+      .finally(() => setAutoLoadingVulns(false))
+  }, [autoReport])
+
+  // Busca el GLOBAL inmediatamente anterior (automático o manual -- ambos comparten
+  // targetType GLOBAL, y para "qué cambió desde la última vez" cualquiera de los dos
+  // es un punto de referencia válido) y reutiliza /compare contra él. Es un enriquecimiento
+  // secundario: si no hay un GLOBAL previo (primer escaneo automático de la instancia) o
+  // la comparación falla, la sección de "nuevas" simplemente no se muestra -- el resto de
+  // la pestaña sigue funcionando igual.
+  useEffect(() => {
+    if (!autoReport) { setAutoComparison(null); return }
+    setAutoComparisonLoading(true)
+    scanApi.history({ targetType: 'GLOBAL', page: 0, size: 5 })
+      .then(({ data }) => {
+        const previous = data.content
+          .filter(r => r.id !== autoReport.id && new Date(r.executedAt).getTime() < new Date(autoReport.executedAt).getTime())
+          .sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime())[0]
+        return previous ? scanApi.compare(previous.id, autoReport.id).then(r => r.data) : null
+      })
+      .then(setAutoComparison)
+      .catch(() => setAutoComparison(null))
+      .finally(() => setAutoComparisonLoading(false))
+  }, [autoReport])
+
+  // ── Tab "Manual" ──────────────────────────────────────────────────────────
   const [scanMode, setScanMode] = useState<ScanMode>('ACTIVO')
   const [componentId, setComponentId] = useState<number | ''>('')
   const [hostAssetId, setHostAssetId] = useState<number | ''>('')
@@ -282,7 +205,7 @@ export default function Scans() {
   const vulnColumns: Column<VulnerabilityAudit>[] = [
     { key: 'cveId', label: 'CVE / GHSA', render: (_v, row) => <span className="font-mono text-xs">{row.cveId || row.ghsaId || 'Sin identificador'}</span> },
     { key: 'cvss', label: 'CVSS', render: v => <span className="font-mono text-xs">{v ? String(v) : '—'}</span> },
-    { key: 'priority', label: 'Prioridad', render: v => <span className={`badge ${PRIORITY_BADGE[String(v)] ?? ''}`}>{String(v) || 'SIN PRIORIDAD'}</span> },
+    { key: 'priority', label: 'Prioridad', render: v => <span className={`badge ${PRIORITY_BADGE[String(v)] ?? ''}`}>{PRIORITY_LABEL[String(v)] ?? String(v) ?? 'Sin prioridad'}</span> },
     { key: 'status', label: 'Estado', render: v => <span className={`badge ${STATUS_BADGE[String(v)] ?? ''}`}>{String(v)}</span> },
     { key: 'detectedAt', label: 'Detectado', render: v => new Date(String(v)).toLocaleString('es-AR') },
   ]
@@ -425,8 +348,8 @@ export default function Scans() {
 
   const severityChangeColumns: Column<ScanComparison['severityChanges'][number]>[] = [
     { key: 'cveId', label: 'CVE / GHSA', render: v => <span className="font-mono text-xs">{String(v)}</span> },
-    { key: 'priorityBefore', label: 'Prioridad antes', render: v => <span className={`badge ${PRIORITY_BADGE[String(v)] ?? ''}`}>{String(v) || 'SIN PRIORIDAD'}</span> },
-    { key: 'priorityAfter', label: 'Prioridad después', render: v => <span className={`badge ${PRIORITY_BADGE[String(v)] ?? ''}`}>{String(v) || 'SIN PRIORIDAD'}</span> },
+    { key: 'priorityBefore', label: 'Prioridad antes', render: v => <span className={`badge ${PRIORITY_BADGE[String(v)] ?? ''}`}>{PRIORITY_LABEL[String(v)] ?? String(v) ?? 'Sin prioridad'}</span> },
+    { key: 'priorityAfter', label: 'Prioridad después', render: v => <span className={`badge ${PRIORITY_BADGE[String(v)] ?? ''}`}>{PRIORITY_LABEL[String(v)] ?? String(v) ?? 'Sin prioridad'}</span> },
   ]
 
   const historyColumns: Column<ScanReport>[] = [
@@ -435,10 +358,10 @@ export default function Scans() {
     { key: 'targetType', label: 'Tipo', render: v => <span className="badge bg-slate-700 text-slate-300">{v ? MODE_LABEL[v as ScanMode] ?? String(v) : '—'}</span> },
     { key: 'targetName', label: 'Objetivo' },
     { key: 'totalDetected', label: 'Total', render: v => <span className="font-mono text-xs">{String(v ?? 0)}</span> },
-    { key: 'criticals', label: 'Crít.', render: v => <span className="font-mono text-xs text-[#bd1e1e]">{String(v ?? 0)}</span> },
-    { key: 'highs', label: 'Altas', render: v => <span className="font-mono text-xs text-[#f95c5c]">{String(v ?? 0)}</span> },
-    { key: 'mediums', label: 'Medias', render: v => <span className="font-mono text-xs text-yellow-300">{String(v ?? 0)}</span> },
-    { key: 'lows', label: 'Bajas', render: v => <span className="font-mono text-xs text-[#44a024]">{String(v ?? 0)}</span> },
+    { key: 'criticals', label: 'Crít.', render: v => <span className="font-mono text-xs text-severity-critical">{String(v ?? 0)}</span> },
+    { key: 'highs', label: 'Altas', render: v => <span className="font-mono text-xs text-severity-high">{String(v ?? 0)}</span> },
+    { key: 'mediums', label: 'Medias', render: v => <span className="font-mono text-xs text-severity-medium">{String(v ?? 0)}</span> },
+    { key: 'lows', label: 'Bajas', render: v => <span className="font-mono text-xs text-severity-low">{String(v ?? 0)}</span> },
     {
       key: 'status', label: 'Resultado',
       render: (v, row) => {
@@ -460,12 +383,13 @@ export default function Scans() {
     <div className="animate-fade-in">
       <PageHeader
         title="Centro de Escaneos"
-        subtitle="Disparar escaneos y revisar el historial de resultados"
+        subtitle="Escaneo diario automático, disparo manual y trazabilidad de resultados"
       />
 
       <div className="flex gap-1 mb-5 bg-surface-800 border border-surface-600 rounded-xl p-1 w-fit">
         {([
-          { key: 'escaneos', label: 'Escaneos' },
+          { key: 'automatico', label: 'Automático' },
+          { key: 'manual', label: 'Manual' },
           { key: 'historial', label: 'Historial' },
         ] as { key: Tab; label: string }[]).map(t => (
           <button
@@ -479,7 +403,83 @@ export default function Scans() {
         ))}
       </div>
 
-      {tab === 'escaneos' && (
+      {tab === 'automatico' && (
+        <>
+          {autoLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+              {[...Array(5)].map((_, i) => <StatCard key={i} title="" loading />)}
+            </div>
+          ) : !autoReport ? (
+            <div className="card flex flex-col items-center text-center gap-3 py-12">
+              <CalendarClock size={28} className="text-slate-500" />
+              <p className="text-sm text-slate-400 max-w-md">
+                Todavía no se registró ningún escaneo automático. Corre todos los días a las 09:00.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="card mb-6 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <p className="text-sm font-medium text-white font-mono">{autoReport.publicCode}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{new Date(autoReport.executedAt).toLocaleString('es-AR')}</p>
+                </div>
+                <span
+                  className={`badge ${SCAN_STATUS_BADGE[autoReport.status] ?? 'bg-slate-700 text-slate-300'}`}
+                  title={autoReport.errorMessage ?? undefined}
+                >
+                  {SCAN_STATUS_LABEL[autoReport.status] ?? autoReport.status}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                <StatCard title="Total detectadas" value={autoReport.totalDetected} icon={Bug} color="brand" />
+                <StatCard
+                  title="Nuevas"
+                  value={autoComparison?.newInB.length}
+                  loading={autoComparisonLoading}
+                  icon={Sparkles}
+                  color="critical"
+                  emphasize={!!autoComparison?.newInB.length}
+                />
+                <StatCard title="Críticas" value={autoReport.criticals} icon={ShieldAlert} color="critical" emphasize={autoReport.criticals > 0} />
+                <StatCard title="Altas" value={autoReport.highs} icon={AlertTriangle} color="high" />
+                <StatCard title="Medias" value={autoReport.mediums} icon={Info} color="medium" />
+                <StatCard title="Bajas" value={autoReport.lows} icon={ShieldCheck} color="low" />
+              </div>
+
+              {!!autoComparison?.newInB.length && (
+                <div className="card p-0 overflow-hidden border border-severity-critical/30 mb-6">
+                  <div className="px-4 py-3 border-b border-surface-600 flex items-center gap-2">
+                    <Sparkles size={14} className="text-severity-critical" />
+                    <p className="text-sm font-medium text-white">Vulnerabilidades nuevas desde el escaneo anterior</p>
+                  </div>
+                  <Table columns={vulnColumns} data={autoComparison.newInB} emptyMessage="Sin resultados" />
+                </div>
+              )}
+
+              <div className="card p-0 overflow-hidden border border-surface-600">
+                <div className="px-4 py-3 border-b border-surface-600">
+                  <p className="text-sm font-medium text-white">Todas las vulnerabilidades de este escaneo</p>
+                </div>
+                {autoLoadingVulns ? (
+                  <div className="p-4 space-y-2">
+                    {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-10 w-full rounded-lg" />)}
+                  </div>
+                ) : (
+                  <GroupedVulnerabilityResult
+                    vulns={autoVulns ?? []}
+                    mode="GLOBAL"
+                    emptyMessage="No se encontraron vulnerabilidades en este escaneo."
+                    vulnColumns={vulnColumns}
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {tab === 'manual' && (
         <>
           {canScan && (
             <div className="card mb-6 w-fit">
@@ -535,7 +535,7 @@ export default function Scans() {
             </div>
           )}
 
-          <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
+          <div className="card p-0 overflow-hidden border border-surface-600">
             <div className="px-4 py-3 border-b border-surface-600">
               <p className="text-sm font-medium text-white">
                 Resultado del escaneo · {MODE_LABEL[resultMode ?? scanMode]}
@@ -632,7 +632,7 @@ export default function Scans() {
               </button>
             </div>
           </div>
-          <div className="card p-0 overflow-hidden rounded-xl border border-surface-600 mb-6">
+          <div className="card p-0 overflow-hidden border border-surface-600 mb-6">
             <Table
               columns={historyColumns}
               data={history}

@@ -2,6 +2,7 @@ package com.gef.gefsecureapp.controller;
 
 import com.gef.gefsecureapp.dto.VulnerabilityAuditDTO;
 import com.gef.gefsecureapp.exception.InvalidCredentialsException;
+import com.gef.gefsecureapp.model.ScanReport;
 import com.gef.gefsecureapp.repository.SystemErrorRepository;
 import com.gef.gefsecureapp.service.ScanService;
 import com.gef.gefsecureapp.service.VulnerabilityAuditService;
@@ -126,5 +127,38 @@ class WebhookControllerTest {
                 .isInstanceOf(CannotAcquireLockException.class);
 
         verify(scanService, times(3)).complete(anyLong(), any());
+    }
+
+    // ── Escaneo automatico (Scan_Scheduler de n8n, scanId null): antes se descartaba sin
+    // persistir nada (ver comentario historico en receiveScanReport); ahora crea el ScanReport
+    // via ScanService.completeAutomatic(), con la misma proteccion de retry por deadlock. ──
+
+    @Test
+    void receiveScanReport_sinScanId_llamaCompleteAutomaticEnVezDeDescartar() {
+        var payload = new WebhookController.ScanReportPayload();
+        payload.scanId = null;
+        payload.totalDetected = 5;
+        ScanReport created = ScanReport.builder().id(200L).publicCode("SCN-2026-000200").build();
+        when(scanService.completeAutomatic(any())).thenReturn(created);
+
+        controller.receiveScanReport(VALID_TOKEN, payload);
+
+        verify(scanService).completeAutomatic(any());
+        verify(scanService, never()).complete(anyLong(), any());
+    }
+
+    @Test
+    void receiveScanReport_sinScanId_reintentaAnteDeadlockYTerminaCompletando() {
+        var payload = new WebhookController.ScanReportPayload();
+        payload.scanId = null;
+        ScanReport created = ScanReport.builder().id(200L).publicCode("SCN-2026-000200").build();
+
+        when(scanService.completeAutomatic(any()))
+                .thenThrow(new CannotAcquireLockException("deadlock detected"))
+                .thenReturn(created);
+
+        controller.receiveScanReport(VALID_TOKEN, payload);
+
+        verify(scanService, times(2)).completeAutomatic(any());
     }
 }

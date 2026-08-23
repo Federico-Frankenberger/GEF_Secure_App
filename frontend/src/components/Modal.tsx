@@ -29,11 +29,19 @@ export default function Modal({ title, open, onClose, children, size = 'md' }: P
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative w-full ${sizes[size]} max-h-[90vh] flex flex-col bg-surface-800 border border-surface-600
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`relative w-full ${sizes[size]} max-h-[90vh] flex flex-col bg-surface-800 border border-surface-600
                        rounded-2xl shadow-2xl animate-slide-in`}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-surface-600 shrink-0">
           <h2 className="text-sm font-semibold text-white">{title}</h2>
-          <button onClick={onClose} className="btn-ghost !px-1.5 !py-1">
+          {/* P-08 (auditoría UX/UI): antes sin aria-label, un botón de solo ícono es
+              invisible para lectores de pantalla. Falta todavía: mover el foco de
+              teclado dentro del modal al abrirse y atraparlo (focus trap) -- requiere
+              más que este fix puntual, no incluido acá. */}
+          <button onClick={onClose} className="btn-ghost !px-1.5 !py-1" aria-label="Cerrar">
             <X size={15} />
           </button>
         </div>

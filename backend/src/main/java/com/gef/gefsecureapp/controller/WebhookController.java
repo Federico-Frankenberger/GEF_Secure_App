@@ -3,6 +3,7 @@ package com.gef.gefsecureapp.controller;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.gef.gefsecureapp.dto.VulnerabilityAuditDTO;
 import com.gef.gefsecureapp.exception.InvalidCredentialsException;
+import com.gef.gefsecureapp.model.ScanReport;
 import com.gef.gefsecureapp.model.SystemError;
 import com.gef.gefsecureapp.repository.SystemErrorRepository;
 import com.gef.gefsecureapp.service.ScanService;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 @RestController
 @RequestMapping("/api/webhook")
@@ -58,9 +60,12 @@ public class WebhookController {
             throw new InvalidCredentialsException("Token interno inválido");
         }
         if (payload.scanId == null) {
-            // Escaneo disparado fuera de la app (Scan_Scheduler/Manual_Trigger de n8n) --
-            // no hay Scan en RUNNING que completar; se documenta como limitacion conocida.
-            log.warn("Webhook scan-report sin scan_id — ignorado (escaneo no disparado desde la app)");
+            // Escaneo automatico (Scan_Scheduler de n8n): antes se descartaba aca sin
+            // persistir nada -- ahora ScanService.completeAutomatic() crea el ScanReport
+            // (triggered_by null = marca de origen automatico, ver findLatestAutomatic).
+            ScanReport created = completeAutomaticWithRetry(payload);
+            log.info("Escaneo automático (Scan_Scheduler) persistido: ScanReport id={} publicCode={}",
+                    created.getId(), created.getPublicCode());
             return ResponseEntity.ok().build();
         }
         completeWithRetry(payload);
@@ -75,19 +80,18 @@ public class WebhookController {
     // las dos transacciones por deadlock -- ese escaneo quedaba en RUNNING para siempre.
     // Un deadlock es, por naturaleza, una condicion transitoria: la transaccion que gano
     // ya libero sus locks, asi que reintentar la perdedora resuelve el caso normal.
-    private void completeWithRetry(ScanReportPayload payload) {
+    // Generico (Supplier<ScanReport>) porque el mismo riesgo de deadlock aplica tanto al
+    // camino manual (complete) como al automatico (completeAutomatic) -- ambos terminan
+    // escribiendo en asset_vulnerabilities via applyLifecycle().
+    private ScanReport runWithDeadlockRetry(Supplier<ScanReport> action, Object logId) {
         int maxAttempts = 3;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                scanService.complete(payload.scanId, new ScanService.ScanCompletionPayload(
-                        payload.totalDetected, payload.audited, payload.ignored,
-                        payload.criticals, payload.highs, payload.mediums, payload.lows,
-                        payload.systemStatus, payload.reportMessage, payload.environmentBreakdown));
-                return;
+                return action.get();
             } catch (CannotAcquireLockException e) {
                 if (attempt == maxAttempts) throw e;
                 log.warn("Scan {} — deadlock al completar (intento {}/{}), reintentando: {}",
-                        payload.scanId, attempt, maxAttempts, e.getMessage());
+                        logId, attempt, maxAttempts, e.getMessage());
                 try {
                     Thread.sleep(200L * attempt);
                 } catch (InterruptedException ie) {
@@ -96,6 +100,21 @@ public class WebhookController {
                 }
             }
         }
+        throw new IllegalStateException("unreachable");
+    }
+
+    private void completeWithRetry(ScanReportPayload payload) {
+        runWithDeadlockRetry(() -> scanService.complete(payload.scanId, new ScanService.ScanCompletionPayload(
+                payload.totalDetected, payload.audited, payload.ignored,
+                payload.criticals, payload.highs, payload.mediums, payload.lows,
+                payload.systemStatus, payload.reportMessage, payload.environmentBreakdown)), payload.scanId);
+    }
+
+    private ScanReport completeAutomaticWithRetry(ScanReportPayload payload) {
+        return runWithDeadlockRetry(() -> scanService.completeAutomatic(new ScanService.ScanCompletionPayload(
+                payload.totalDetected, payload.audited, payload.ignored,
+                payload.criticals, payload.highs, payload.mediums, payload.lows,
+                payload.systemStatus, payload.reportMessage, payload.environmentBreakdown)), "automático");
     }
 
     @PostMapping("/error")

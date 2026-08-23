@@ -1,25 +1,21 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Plus, Search, Pencil, Trash2, ScanLine, RefreshCw, Archive, RotateCcw, Syringe, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { assetApi, environmentApi, softwareComponentApi, assetTypeApi, ecosystemApi, inventoryApi } from '../services/api'
-import type { Asset, AssetRequest, DeletedAsset, Environment, SoftwareComponent, SoftwareComponentRequest, SoftwareCatalogEntry, AssetType, Ecosystem, InventorySummary, InventoryItemStatus } from '../types'
+import { assetApi, environmentApi, softwareComponentApi, assetTypeApi, ecosystemApi, inventoryApi, vulnApi } from '../services/api'
+import type { Asset, AssetRequest, DeletedAsset, Environment, SoftwareComponent, SoftwareComponentRequest, SoftwareCatalogEntry, AssetType, Ecosystem, InventorySummary, InventoryItemStatus, VulnerabilityAudit } from '../types'
 import PageHeader from '../components/PageHeader'
 import Table, { Column } from '../components/Table'
 import Modal from '../components/Modal'
 import SoftwareAutocomplete from '../components/SoftwareAutocomplete'
 import { useScanPolling } from '../hooks/useScanPolling'
 import { useAuth } from '../contexts/AuthContext'
+import { PRIORITY_BADGE, PRIORITY_LABEL, CRITICALITY_BADGE, rank } from '../constants/badges'
 
-const CRITICALITY_BADGE: Record<string, string> = {
-  'CRITICA':  'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
-  'ALTA':     'bg-[#f95c5c]/15 text-[#f95c5c] border border-[#f95c5c]/30',
-  'MEDIA':    'bg-[#f9f15c]/15 text-yellow-200 border border-[#f9f15c]/30',
-  'BAJA':     'bg-[#44a024]/15 text-[#44a024] border border-[#44a024]/30',
-  'CRITICAL': 'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
-  'HIGH':     'bg-[#f95c5c]/15 text-[#f95c5c] border border-[#f95c5c]/30',
-  'MEDIUM':   'bg-[#f9f15c]/15 text-yellow-200 border border-[#f9f15c]/30',
-  'LOW':      'bg-[#44a024]/15 text-[#44a024] border border-[#44a024]/30',
-}
+// P-03 (auditoría UX/UI): antes hex crudo, y conflaba dos conceptos distintos en el
+// mismo mapa (criticidad de entorno BAJA/MEDIA/ALTA/CRITICA -- la única que este
+// archivo usa realmente, ver businessCriticality más abajo -- y prioridad de
+// vulnerabilidad CRITICAL/HIGH/MEDIUM/LOW, que nunca llegaba a usarse acá). Ahora
+// usa el token `criticality.*` propio, separado de `severity.*`.
 
 // FE-09 (docs/20-08-26/AUDITORIA_END_TO_END.md): formato exacto que espera GitHub
 // Advisory por ecosistema en modo texto libre (ver informe §4/§14, normalización).
@@ -38,8 +34,8 @@ const INVENTORY_STATUS_BADGE: Record<InventoryItemStatus, string> = {
   NUEVO:         'bg-emerald-600/20 text-emerald-400 border border-emerald-600/30',
   ACTUALIZADO:   'bg-amber-600/20 text-amber-400 border border-amber-600/30',
   SIN_CAMBIOS:   'bg-slate-600/30 text-slate-300 border border-slate-500/30',
-  NO_RECONOCIDO: 'bg-[#f9f15c]/15 text-yellow-200 border border-[#f9f15c]/30',
-  ERROR:         'bg-[#bd1e1e]/20 text-[#bd1e1e] border border-[#bd1e1e]/40',
+  NO_RECONOCIDO: 'bg-severity-medium/15 text-severity-medium border border-severity-medium/30',
+  ERROR:         'bg-severity-critical/20 text-severity-critical border border-severity-critical/40',
 }
 const INVENTORY_STATUS_LABEL: Record<InventoryItemStatus, string> = {
   NUEVO: 'Nuevo', ACTUALIZADO: 'Actualizado', SIN_CAMBIOS: 'Sin cambios',
@@ -77,13 +73,21 @@ export default function Assets() {
   const [loadingComps,  setLoadingComps]  = useState(true)
   const [search,        setSearch]        = useState('')
   const [selected,      setSelected]      = useState<Selection>(null)
+  // P-19 (auditoría UX/UI): antes la búsqueda solo matcheaba nombre de activo -- se carga
+  // siempre el listado completo y se filtra en el cliente por nombre de activo O de
+  // cualquier software instalado en él, sin depender de un endpoint de búsqueda nuevo.
+  const [vulns, setVulns] = useState<VulnerabilityAudit[]>([])
 
-  const loadAssets = useCallback((q = '') => {
+  const loadAssets = useCallback(() => {
     setLoading(true)
-    assetApi.getAll(q)
+    assetApi.getAll()
       .then(r => setAssets(r.data))
       .catch(() => toast.error('Error al cargar activos'))
       .finally(() => setLoading(false))
+  }, [])
+
+  const loadVulns = useCallback(() => {
+    vulnApi.getAll().then(r => setVulns(r.data)).catch(() => toast.error('Error al cargar vulnerabilidades'))
   }, [])
 
   const loadComponents = useCallback(() => {
@@ -102,7 +106,7 @@ export default function Assets() {
       // El flujo de n8n consulta GitHub Advisory por 4 severidades y hace 2 INSERTs --
       // no hay callback de "listo", se espera un tiempo prudencial y se refresca.
       setTimeout(() => {
-        loadAssets(search)
+        loadAssets()
         loadComponents()
         toast.success('Activo de prueba inyectado')
         setInjecting(false)
@@ -116,6 +120,7 @@ export default function Assets() {
   useEffect(() => {
     loadAssets()
     loadComponents()
+    loadVulns()
     environmentApi.getAll()
       .then(r => setEnvironments(r.data))
       .catch(() => toast.error('Error al cargar entornos'))
@@ -125,9 +130,34 @@ export default function Assets() {
     ecosystemApi.getAll()
       .then(r => setEcosystems(r.data))
       .catch(() => toast.error('Error al cargar ecosistemas'))
-  }, [loadAssets, loadComponents])
+  }, [loadAssets, loadComponents, loadVulns])
 
   const countFor = (assetId: number) => components.filter(c => c.assetId === assetId).length
+
+  // P-07 (auditoría UX/UI): antes no había forma de saber, desde el listado, si un activo
+  // tenía vulnerabilidades abiertas -- había que cruzar manualmente con el Kanban. Se agrega
+  // sin pedir datos nuevos al backend: `vulns` ya trae `assetId` y `priority` por hallazgo.
+  const assetVulnStats = useMemo(() => {
+    const stats: Record<number, { openCount: number; topPriority: string | null }> = {}
+    for (const v of vulns) {
+      if (v.assetId == null || v.status === 'RESUELTA') continue
+      const cur = stats[v.assetId] ?? { openCount: 0, topPriority: null }
+      cur.openCount += 1
+      if (cur.topPriority == null || rank(String(v.priority)) < rank(cur.topPriority)) cur.topPriority = String(v.priority)
+      stats[v.assetId] = cur
+    }
+    return stats
+  }, [vulns])
+
+  // P-19: filtro client-side por nombre de activo O por cualquier software instalado en él.
+  const filteredAssets = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return assets
+    return assets.filter(a =>
+      a.name.toLowerCase().includes(q) ||
+      components.some(c => c.assetId === a.id && (c.name.toLowerCase().includes(q) || c.software.toLowerCase().includes(q)))
+    )
+  }, [assets, components, search])
 
   const detailComponents = useMemo(() => {
     if (selected === null) return []
@@ -173,7 +203,6 @@ export default function Assets() {
   }
 
   const handleDeleteAsset = async (id: number) => {
-    if (!confirm('¿Eliminar este activo? El activo y su software instalado se marcan como eliminados (no se pierden) — se pueden restaurar después desde la pestaña "Eliminados".')) return
     try {
       await assetApi.delete(id)
       toast.success('Activo eliminado')
@@ -341,7 +370,6 @@ export default function Assets() {
   }
 
   const handleDeleteComponent = async (id: number) => {
-    if (!confirm('¿Eliminar este componente?')) return
     try {
       await softwareComponentApi.delete(id)
       toast.success('Componente eliminado')
@@ -349,6 +377,19 @@ export default function Assets() {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al eliminar')
     }
+  }
+
+  // P-09 (auditoría UX/UI): las confirmaciones destructivas usaban el confirm() nativo del
+  // navegador -- no se puede estilizar y rompe la identidad visual justo en la acción más
+  // sensible. Un único modal de confirmación reutilizable para ambos casos (activo/componente).
+  const [confirmTarget, setConfirmTarget] = useState<{ kind: 'asset' | 'component'; id: number; name: string } | null>(null)
+  const requestDeleteAsset = (id: number, name: string) => setConfirmTarget({ kind: 'asset', id, name })
+  const requestDeleteComponent = (id: number, name: string) => setConfirmTarget({ kind: 'component', id, name })
+  const confirmDelete = () => {
+    if (!confirmTarget) return
+    if (confirmTarget.kind === 'asset') handleDeleteAsset(confirmTarget.id)
+    else handleDeleteComponent(confirmTarget.id)
+    setConfirmTarget(null)
   }
 
   const handleScan = async (component: SoftwareComponent) => {
@@ -378,17 +419,33 @@ export default function Assets() {
 
   // ── Columnas ──────────────────────────────────────────────────────────
   const assetColumns: Column<Asset>[] = [
-    { key: 'name',      label: 'Nombre' },
-    { key: 'assetType', label: 'Tipo', render: v => <span className="badge bg-slate-700 text-slate-300">{String(v)}</span> },
-    { key: 'environmentName', label: 'Entorno', render: v => <span className="text-xs text-slate-300">{v ? String(v) : '—'}</span> },
+    { key: 'name',      label: 'Nombre', sortable: true },
+    { key: 'assetType', label: 'Tipo', sortable: true, render: v => <span className="badge bg-slate-700 text-slate-300">{String(v)}</span> },
+    { key: 'environmentName', label: 'Entorno', sortable: true, render: v => <span className="text-xs text-slate-300">{v ? String(v) : '—'}</span> },
     { key: 'componentsCount', label: 'Componentes', render: (_v, row) => <span className="font-mono text-xs">{countFor(row.id)}</span> },
+    {
+      // P-07: severidad más alta entre las vulnerabilidades abiertas de este activo + conteo.
+      key: 'id', label: 'Vulnerabilidades',
+      render: (v) => {
+        const stat = assetVulnStats[Number(v)]
+        if (!stat || stat.openCount === 0) return <span className="text-xs text-slate-500">Sin abiertas</span>
+        return (
+          <span className="inline-flex items-center gap-1.5">
+            <span className={`badge ${PRIORITY_BADGE[stat.topPriority ?? ''] ?? 'bg-slate-700 text-slate-300'}`}>
+              {PRIORITY_LABEL[stat.topPriority ?? ''] ?? stat.topPriority}
+            </span>
+            <span className="font-mono text-xs text-slate-400">({stat.openCount})</span>
+          </span>
+        )
+      },
+    },
     { key: 'description', label: 'Descripción', render: v => <span className="text-xs text-slate-400 line-clamp-2 max-w-xs">{v ? String(v) : '—'}</span> },
     ...(canWrite ? [{
       key: 'id', label: 'Acciones',
       render: (v: unknown, row: Asset) => (
         <div className="flex items-center gap-1">
-          <button onClick={e => { e.stopPropagation(); openEditAsset(row) }} className="btn-ghost !py-1 !px-2"><Pencil size={13} /></button>
-          <button onClick={e => { e.stopPropagation(); handleDeleteAsset(Number(v)) }} className="btn-ghost !py-1 !px-2 text-red-400"><Trash2 size={13} /></button>
+          <button onClick={e => { e.stopPropagation(); openEditAsset(row) }} className="btn-ghost !py-1 !px-2" aria-label={`Editar activo ${row.name}`}><Pencil size={13} /></button>
+          <button onClick={e => { e.stopPropagation(); requestDeleteAsset(Number(v), row.name) }} className="btn-ghost !py-1 !px-2 text-red-400" aria-label={`Eliminar activo ${row.name}`}><Trash2 size={13} /></button>
         </div>
       ),
     }] : []),
@@ -396,11 +453,11 @@ export default function Assets() {
 
   const componentColumns: Column<SoftwareComponent>[] = [
     {
-      key: 'name', label: 'Nombre',
+      key: 'name', label: 'Nombre', sortable: true,
       render: v => <span className="block max-w-[180px] truncate" title={String(v)}>{String(v)}</span>,
     },
     {
-      key: 'software', label: 'Software',
+      key: 'software', label: 'Software', sortable: true,
       render: (v, row) => (
         <span className="inline-flex items-center gap-1.5 max-w-[220px]">
           <span className="truncate min-w-0" title={String(v)}>{String(v)}</span>
@@ -426,11 +483,11 @@ export default function Assets() {
       key: 'id', label: 'Acciones',
       render: (v: unknown, row: SoftwareComponent) => (
         <div className="flex items-center gap-1">
-          <button onClick={() => handleScan(row)} disabled={scanning === Number(v)} className="btn-ghost !py-1 !px-2 text-emerald-400">
+          <button onClick={() => handleScan(row)} disabled={scanning === Number(v)} className="btn-ghost !py-1 !px-2 text-emerald-400" aria-label={`Escanear componente ${row.name}`}>
             {scanning === Number(v) ? <RefreshCw size={13} className="animate-spin" /> : <ScanLine size={13} />}
           </button>
-          <button onClick={() => openEditComponent(row)} className="btn-ghost !py-1 !px-2"><Pencil size={13} /></button>
-          <button onClick={() => handleDeleteComponent(Number(v))} className="btn-ghost !py-1 !px-2 text-red-400"><Trash2 size={13} /></button>
+          <button onClick={() => openEditComponent(row)} className="btn-ghost !py-1 !px-2" aria-label={`Editar componente ${row.name}`}><Pencil size={13} /></button>
+          <button onClick={() => requestDeleteComponent(Number(v), row.name)} className="btn-ghost !py-1 !px-2 text-red-400" aria-label={`Eliminar componente ${row.name}`}><Trash2 size={13} /></button>
         </div>
       ),
     }] : []),
@@ -497,10 +554,10 @@ export default function Assets() {
 
       {tab === 'vigentes' && (
         <>
-          <form onSubmit={e => { e.preventDefault(); loadAssets(search) }} className="flex gap-2 mb-4">
+          <form onSubmit={e => { e.preventDefault(); loadAssets() }} className="flex gap-2 mb-4">
             <div className="relative flex-1 max-w-xs">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-              <input className="input pl-8" placeholder="Buscar activo…" value={search} onChange={e => setSearch(e.target.value)} />
+              <input className="input pl-8" placeholder="Buscar activo o software instalado…" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <button type="submit" className="btn-primary">Buscar</button>
             <button type="button" onClick={() => { setSearch(''); loadAssets() }} className="btn-ghost">Limpiar</button>
@@ -509,7 +566,7 @@ export default function Assets() {
           <div className="card p-0 overflow-hidden rounded-xl border border-surface-600 mb-6">
             <Table
               columns={assetColumns}
-              data={assets}
+              data={filteredAssets}
               loading={loading}
               emptyMessage="No hay activos registrados"
               onRowClick={a => setSelected(prev => prev === a.id ? null : a.id)}
@@ -672,18 +729,21 @@ export default function Assets() {
             <label className="block text-xs text-slate-400 mb-1">Descripción</label>
             <textarea className="input resize-none" rows={2} value={assetForm.description} onChange={e => fAsset('description', e.target.value)} placeholder="Descripción opcional…" />
           </div>
-          {/* Fase 10, opcional (docs/21-08-26/Plan_Implementacion_Tracking_Solido.md):
-              declarado a mano -- sin checkbox tocado queda undefined/null (no declarado),
-              no se asume "no expuesto" por omisión. */}
-          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={assetForm.exposed ?? false}
-              onChange={e => fAsset('exposed', e.target.checked)}
-              className="accent-brand-500"
-            />
-            Expuesto a internet (alcanzable desde afuera)
-          </label>
+          {/* P-13 (auditoría UX/UI): el modelo permite 3 estados (null = no declarado,
+              false = declarado que no, true = expuesto) pero un checkbox solo distingue 2 --
+              "no declarado" y "declarado como no expuesto" quedaban visualmente idénticos. */}
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Exposición a internet</label>
+            <select
+              className="input"
+              value={assetForm.exposed === undefined ? '' : String(assetForm.exposed)}
+              onChange={e => fAsset('exposed', e.target.value === '' ? undefined : e.target.value === 'true')}
+            >
+              <option value="">Sin declarar</option>
+              <option value="false">No expuesto</option>
+              <option value="true">Expuesto (alcanzable desde afuera)</option>
+            </select>
+          </div>
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setAssetModal(false)} className="btn-ghost">Cancelar</button>
             {/* FE-07 (docs/20-08-26/AUDITORIA_END_TO_END.md): único formulario de la app
@@ -779,6 +839,30 @@ export default function Assets() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* P-09: modal de confirmación propio, reemplaza confirm() nativo */}
+      <Modal
+        title={confirmTarget?.kind === 'asset' ? 'Eliminar activo' : 'Eliminar componente'}
+        open={!!confirmTarget}
+        onClose={() => setConfirmTarget(null)}
+        size="sm"
+      >
+        {confirmTarget && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-300">
+              {confirmTarget.kind === 'asset' ? (
+                <>¿Eliminar el activo <b className="text-white">{confirmTarget.name}</b>? El activo y su software instalado se marcan como eliminados (no se pierden) — se pueden restaurar después desde la pestaña "Eliminados".</>
+              ) : (
+                <>¿Eliminar el componente <b className="text-white">{confirmTarget.name}</b>? Esta acción no se puede deshacer.</>
+              )}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmTarget(null)} className="btn-ghost">Cancelar</button>
+              <button onClick={confirmDelete} className="btn-danger">Eliminar</button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

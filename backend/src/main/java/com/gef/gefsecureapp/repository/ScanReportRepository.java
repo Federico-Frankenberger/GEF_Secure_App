@@ -130,4 +130,17 @@ public interface ScanReportRepository extends JpaRepository<ScanReport, Long> {
     // queda trabado en RUNNING (n8n cae, el webhook de cierre nunca llega) queda asi para
     // siempre, sin nada que lo marque como sospechoso -- ver ScanService.closeStaleRunningScans().
     java.util.List<ScanReport> findByStatusAndStartedAtBefore(String status, LocalDateTime cutoff);
+
+    // Escaneo automatico diario (Scan_Scheduler de n8n, 09:00): triggered_by IS NULL
+    // por si solo NO alcanza como marca de origen -- se encontraron filas viejas
+    // (datos de prueba) con triggered_by sin completar que no son automaticas y que
+    // este metodo confundia con la ultima corrida real. is_automatic_scan (init/26)
+    // es explicita y solo la pone en true ScanService.completeAutomatic().
+    @Query(value = """
+            SELECT * FROM scan_reports r
+            WHERE r.target_type = 'GLOBAL' AND r.is_automatic_scan = TRUE
+            ORDER BY r.executed_at DESC NULLS LAST
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<ScanReport> findLatestAutomatic();
 }

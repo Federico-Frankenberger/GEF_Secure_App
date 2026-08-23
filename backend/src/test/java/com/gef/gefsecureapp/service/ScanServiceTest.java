@@ -209,6 +209,49 @@ class ScanServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
+    // ── completeAutomatic() (escaneo diario de Scan_Scheduler, sin scanId/usuario) ─────────
+
+    @Test
+    @DisplayName("completeAutomatic() crea el ScanReport ya COMPLETED, con triggeredBy null como marca de origen automatico")
+    void completeAutomatic_should_createCompletedScan_withNullTriggeredBy() {
+        when(scanReportRepository.save(any(ScanReport.class))).thenAnswer(inv -> {
+            ScanReport s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(55L);
+            return s;
+        });
+
+        ScanReport result = scanService.completeAutomatic(new ScanService.ScanCompletionPayload(
+                10, 8, 2, 1, 2, 3, 2, "✅ ESTABLE", "resumen", "{}"));
+
+        assertThat(result.getStatus()).isEqualTo("COMPLETED");
+        assertThat(result.getTargetType()).isEqualTo("GLOBAL");
+        assertThat(result.getTargetName()).isEqualTo("TODOS");
+        assertThat(result.getTriggeredBy()).isNull();
+        assertThat(result.getStartedAt()).isNotNull();
+        assertThat(result.getExecutedAt()).isNotNull();
+        assertThat(result.getTotalDetected()).isEqualTo(10);
+        assertThat(result.getCriticals()).isEqualTo(1);
+        assertThat(result.getPublicCode()).matches("SCN-\\d{4}-000055");
+        verifyNoInteractions(userRepository, softwareComponentRepository, environmentRepository, assetRepository);
+    }
+
+    @Test
+    @DisplayName("completeAutomatic() vincula los hallazgos huerfanos (scan_id NULL) antes de correr applyLifecycle")
+    void completeAutomatic_should_linkOrphanFindings_beforeApplyingLifecycle() {
+        when(scanReportRepository.save(any(ScanReport.class))).thenAnswer(inv -> {
+            ScanReport s = inv.getArgument(0);
+            if (s.getId() == null) s.setId(55L);
+            return s;
+        });
+
+        ScanReport result = scanService.completeAutomatic(new ScanService.ScanCompletionPayload(
+                10, 8, 2, 1, 2, 3, 2, "✅ ESTABLE", "resumen", "{}"));
+
+        var inOrder = inOrder(vulnerabilityAuditService);
+        inOrder.verify(vulnerabilityAuditService).linkOrphanFindings(eq(55L), any(LocalDateTime.class));
+        inOrder.verify(vulnerabilityAuditService).applyLifecycle(result);
+    }
+
     @Test
     @DisplayName("Watchdog: closeStaleRunningScans() marca FAILED los escaneos RUNNING colgados hace mas del umbral (informe AUDITORIA_END_TO_END 2026-08-22, sin @Scheduled en todo el backend)")
     void closeStaleRunningScans_should_markStaleRunningScans_asFailed() {

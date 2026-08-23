@@ -7,6 +7,12 @@ COPY package.json package-lock.json* ./
 RUN npm ci --silent
 
 COPY . .
+# P-10 (auditoria UX/UI): los accesos rapidos de demo en Login.tsx quedan fuera
+# del bundle a menos que se declare esto explicitamente -- por defecto (build
+# de "producto") no existen. Este compose es el entorno local/demo del
+# proyecto, asi que se habilitan aca a proposito (ver docker-compose.yml).
+ARG VITE_ENABLE_DEMO_LOGIN=false
+ENV VITE_ENABLE_DEMO_LOGIN=$VITE_ENABLE_DEMO_LOGIN
 RUN npm run build
 
 # ── Etapa 2: Nginx ────────────────────────────────────────────────────────────

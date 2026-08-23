@@ -692,7 +692,7 @@
           "value": "C0AB7JZ05MK",
           "mode": "id"
         },
-        "text": "=*🛡️ GEF SECURE | REPORTE DE ESTADO DE SEGURIDAD*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 IDENTIFICACIÓN DEL ESCANEO*\n> *ID de Ejecución:* `{{ $execution.id }}`\n> *Fecha:* `{{ $json.ejecucion_stats.fecha }}`\n> *Origen:* Auditoría Automatizada VMP\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📊 RESUMEN DE ANÁLISIS*\n> • Registros totales: `{{ $json.ejecucion_stats.detalle.total_items }}`\n> • Activos auditados: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Registros filtrados: `{{ $json.ejecucion_stats.detalle.ignorados }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*⚠️ MATRIZ DE RIESGO GLOBAL*\n> • CRÍTICO: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • ALTO: `{{ $json.ejecucion_stats.detalle.altas }}`\n> • MEDIO: `{{ $json.ejecucion_stats.detalle.medias }}`\n> • BAJO: `{{ $json.ejecucion_stats.detalle.bajas }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*🌐 ESTADO POR ENTORNO*\n{{ Object.entries($json.ejecucion_stats.entornos).map(([name, s]) => {\n  return `• *${name.toUpperCase()}* ➔ [ CRIT: ${s.criticos} | ALTO: ${s.altas} | MED: ${s.medias} | BAJ: ${s.bajas} ]`;\n}).join('\\n') }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ATENCIÓN:* Se han detectado vulnerabilidades críticas. Se requiere mitigación inmediata de los activos comprometidos.\" : \"✅ *VALIDADO:* La postura de seguridad es correcta. No se requieren intervenciones en este ciclo.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/|Acceder al Panel de Gestión de GEF Secure>",
+        "text": "=*🛡️ GEF SECURE | REPORTE DE ESTADO DE SEGURIDAD*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 IDENTIFICACIÓN DEL ESCANEO*\n> *ID de Ejecución:* `{{ $execution.id }}`\n> *Fecha:* `{{ $json.ejecucion_stats.fecha }}`\n> *Origen:* Auditoría Automatizada VMP\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📊 RESUMEN DE ANÁLISIS*\n> • Registros totales: `{{ $json.ejecucion_stats.detalle.total_items }}`\n> • Activos auditados: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Registros filtrados: `{{ $json.ejecucion_stats.detalle.ignorados }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*⚠️ MATRIZ DE RIESGO GLOBAL*\n> • CRÍTICO: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • ALTO: `{{ $json.ejecucion_stats.detalle.altas }}`\n> • MEDIO: `{{ $json.ejecucion_stats.detalle.medias }}`\n> • BAJO: `{{ $json.ejecucion_stats.detalle.bajas }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*🌐 ESTADO POR ENTORNO*\n{{ Object.entries($json.ejecucion_stats.entornos).map(([name, s]) => {\n  return `• *${name.toUpperCase()}* ➔ [ CRIT: ${s.criticos} | ALTO: ${s.altas} | MED: ${s.medias} | BAJ: ${s.bajas} ]`;\n}).join('\\n') }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ATENCIÓN:* Se han detectado vulnerabilidades críticas. Se requiere mitigación inmediata de los activos comprometidos.\" : \"✅ *VALIDADO:* La postura de seguridad es correcta. No se requieren intervenciones en este ciclo.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/scans|Acceder al Panel de Gestión de GEF Secure>",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
@@ -778,6 +778,39 @@
       ],
       "id": "a8e5f3c7-4d2b-4a1e-9c6f-8b3d5e7a2c94",
       "name": "Pick_Real_Or_Fallback_Metrics"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1a2b3d4-6e7f-4a8b-9c0d-1e2f3a4b5c6d",
+              "leftValue": "={{ $(\"Webhook\").isExecuted }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2300,
+        -168
+      ],
+      "id": "e1d2c3b4-5a6f-4b7c-8d9e-0f1a2b3c4d5e",
+      "name": "Is_Automatic_Scan"
     },
     {
       "parameters": {},
@@ -998,7 +1031,7 @@
           "value": "C0AB7JZ05MK",
           "mode": "id"
         },
-        "text": "=*🛡️ GEF SECURE | REPORTE DE ESTADO POR ENTORNO*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 SEGMENTO ANALIZADO*\n> *Entorno:* `{{ $(\"Edit Fields\").first().json.filtro_entorno?.toUpperCase() || 'N/A' }}`\n> *ID de Ejecución:* `{{ $execution.id }}`\n> *Fecha:* `{{ $json.ejecucion_stats.fecha }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📊 MÉTRICAS DEL SEGMENTO*\n> • Hallazgos totales: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Críticos: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • Altos: `{{ $json.ejecucion_stats.detalle.altas }}`\n> • Medios/Bajos: `{{ $json.ejecucion_stats.detalle.medias + $json.ejecucion_stats.detalle.bajas }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ATENCIÓN:* Se requiere revisión de la política de seguridad en este entorno.\" : \"✅ *VALIDADO:* El segmento opera bajo parámetros de riesgo aceptables.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/|Ver detalle del entorno en GEF Secure>",
+        "text": "=*🛡️ GEF SECURE | REPORTE DE ESTADO POR ENTORNO*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 SEGMENTO ANALIZADO*\n> *Entorno:* `{{ $(\"Edit Fields\").first().json.filtro_entorno?.toUpperCase() || 'N/A' }}`\n> *ID de Ejecución:* `{{ $execution.id }}`\n> *Fecha:* `{{ $json.ejecucion_stats.fecha }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📊 MÉTRICAS DEL SEGMENTO*\n> • Hallazgos totales: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Críticos: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • Altos: `{{ $json.ejecucion_stats.detalle.altas }}`\n> • Medios/Bajos: `{{ $json.ejecucion_stats.detalle.medias + $json.ejecucion_stats.detalle.bajas }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ATENCIÓN:* Se requiere revisión de la política de seguridad en este entorno.\" : \"✅ *VALIDADO:* El segmento opera bajo parámetros de riesgo aceptables.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/scans|Ver detalle del entorno en GEF Secure>",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
@@ -1025,7 +1058,7 @@
           "value": "C0AB7JZ05MK",
           "mode": "id"
         },
-        "text": "=*🛡️ GEF SECURE | REPORTE TÉCNICO DE ACTIVO*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 IDENTIFICACIÓN DEL ACTIVO*\n> *Nombre:* `{{ $(\"Edit Fields\").first().json.filtro_activo?.toUpperCase() || 'N/A' }}`\n> *Ubicación:* `{{ $(\"Edit Fields\").first().json.filtro_entorno?.toUpperCase() || 'N/A' }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*⚠️ RESULTADO DE AUDITORÍA*\n> • Vulnerabilidades detectadas: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Riesgos Críticos: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • Puntuación CVSS Máxima: `{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"CRÍTICO\" : \"ESTÁNDAR\" }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ACCIÓN REQUERIDA:* Intervenir el activo para mitigar vulnerabilidades detectadas.\" : \"✅ *VALIDADO:* El activo cumple con los requisitos de seguridad vigentes.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/|Ver historial de auditoría del activo>",
+        "text": "=*🛡️ GEF SECURE | REPORTE TÉCNICO DE ACTIVO*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📌 IDENTIFICACIÓN DEL ACTIVO*\n> *Nombre:* `{{ $(\"Edit Fields\").first().json.filtro_activo?.toUpperCase() || 'N/A' }}`\n> *Ubicación:* `{{ $(\"Edit Fields\").first().json.filtro_entorno?.toUpperCase() || 'N/A' }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*⚠️ RESULTADO DE AUDITORÍA*\n> • Vulnerabilidades detectadas: `{{ $json.ejecucion_stats.detalle.auditados }}`\n> • Riesgos Críticos: `{{ $json.ejecucion_stats.detalle.criticos }}`\n> • Puntuación CVSS Máxima: `{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"CRÍTICO\" : \"ESTÁNDAR\" }}`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n*📑 POSTURA DE SEGURIDAD:*\n{{ $json.ejecucion_stats.detalle.criticos > 0 ? \"🔴 *ACCIÓN REQUERIDA:* Intervenir el activo para mitigar vulnerabilidades detectadas.\" : \"✅ *VALIDADO:* El activo cumple con los requisitos de seguridad vigentes.\" }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔗 <http://localhost:3000/scans|Ver historial de auditoría del activo>",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
@@ -1528,7 +1561,7 @@
       "main": [
         [
           {
-            "node": "Switch1",
+            "node": "Is_Automatic_Scan",
             "type": "main",
             "index": 0
           },
@@ -1538,6 +1571,18 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Is_Automatic_Scan": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Error_Trigger": {

@@ -119,6 +119,50 @@ class ScanControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
 
+    // ── latestAutomaticReport() (escaneo diario de Scan_Scheduler, triggered_by IS NULL) ──
+
+    @Test
+    @DisplayName("latestAutomaticReport() para ADMIN no aplica ningun filtro de scope")
+    void latestAutomaticReport_admin_sinScope() {
+        TestAuth.loginAs(1L, "admin", "ADMIN");
+        ScanReport global = scan(3L);
+        global.setTargetType("GLOBAL");
+        global.setTargetName("TODOS");
+        when(scanReportRepository.findLatestAutomatic()).thenReturn(Optional.of(global));
+
+        ResponseEntity<ScanReportDTO> response = controller.latestAutomaticReport();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(userAssetAssignmentService, never()).assignedAssetIds(any());
+    }
+
+    @Test
+    @DisplayName("latestAutomaticReport() da 204 si todavia no corrio ningun escaneo automatico")
+    void latestAutomaticReport_sinDatos_da204() {
+        TestAuth.loginAs(1L, "admin", "ADMIN");
+        when(scanReportRepository.findLatestAutomatic()).thenReturn(Optional.empty());
+
+        ResponseEntity<ScanReportDTO> response = controller.latestAutomaticReport();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    @DisplayName("latestAutomaticReport() da 204 para ASSET_OWNER (GLOBAL nunca resuelve a un activo unico)")
+    void latestAutomaticReport_assetOwner_siempre204() {
+        TestAuth.loginAs(10L, "owner.demo", "ASSET_OWNER");
+        ScanReport global = scan(3L);
+        global.setTargetType("GLOBAL");
+        global.setTargetName("TODOS");
+        when(scanReportRepository.findLatestAutomatic()).thenReturn(Optional.of(global));
+        when(scanReportRepository.resolveAssetId(3L)).thenReturn(null);
+        when(userAssetAssignmentService.assignedAssetIds(10L)).thenReturn(Set.of(17L));
+
+        ResponseEntity<ScanReportDTO> response = controller.latestAutomaticReport();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+    }
+
     @Test
     @DisplayName("history() para ADMIN usa search() sin scope")
     void history_admin_usaSearchSinScope() {
