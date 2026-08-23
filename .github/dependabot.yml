@@ -14,6 +14,18 @@ updates:
     labels:
       - "dependencies"
       - "backend"
+    ignore:
+      # OpenPDF 3.x migró el paquete de com.lowagie.text a org.openpdf --
+      # rompe la generación de reportes PDF (sección Informes). Ver el
+      # comentario en build.gradle. No proponer major bumps para esta lib.
+      - dependency-name: "com.github.librepdf:openpdf"
+        update-types: ["version-update:semver-major"]
+      # springdoc-openapi 3.x requiere una versión de Spring Boot más nueva
+      # que la 3.3.4 que usa este proyecto -- probado en vivo (2026-08-23):
+      # rompe el arranque del contexto (ClassNotFoundException). No proponer
+      # major bumps hasta que el proyecto migre de Spring Boot.
+      - dependency-name: "org.springdoc:springdoc-openapi-starter-webmvc-ui"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/frontend"
@@ -23,6 +35,19 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+    ignore:
+      # @vitejs/plugin-react 6.x exige vite ^8.0.0 -- probado en vivo
+      # (2026-08-23): npm ERESOLVE, este proyecto usa vite ^5.4.8. Migrar
+      # de mayor implica actualizar Vite también, fuera de alcance de un
+      # bump aislado de este plugin.
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      # jsdom 30.x depende de undici@8, que exige Node >=22.19.0 -- probado
+      # en vivo (2026-08-23): funciona con warning en Node 22.15 local, pero
+      # el CI usa Node 20 (ver ci.yml). Además el setup del entorno de test
+      # se volvió ~8x más lento (8s -> 62s). No vale el riesgo todavía.
+      - dependency-name: "jsdom"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
