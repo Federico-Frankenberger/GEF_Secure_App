@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout      from './components/Layout'
 import RequireAuth  from './components/RequireAuth'
+import Landing   from './pages/Landing'
 import Login      from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Scans     from './pages/Scans'
@@ -12,11 +13,11 @@ import Settings  from './pages/Settings'
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="login" element={<Login />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
-          <Route index              element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard"   element={<Dashboard />} />
           <Route path="scans"       element={<Scans />} />
           <Route path="inventory"   element={<Navigate to="/assets" replace />} />

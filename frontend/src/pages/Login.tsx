@@ -1,6 +1,6 @@
 import { useEffect, useState, FormEvent } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { Wrench, ShieldAlert, Server, Eye } from 'lucide-react'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { Wrench, ShieldAlert, Server, Eye, ArrowLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import logoIcon from '../assets/logos/logo-icon.png'
@@ -75,6 +75,10 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-surface-900 flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
+        <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-white transition-colors mb-6">
+          <ArrowLeft size={12} /> Volver a GEF Secure
+        </Link>
+
         <div className="flex flex-col items-center gap-2 mb-6">
           <img src={logoIcon} alt="" className="w-14 h-14" />
           <p className="text-lg font-semibold text-white">GEF Secure</p>
