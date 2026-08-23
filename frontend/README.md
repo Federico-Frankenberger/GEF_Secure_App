@@ -18,8 +18,10 @@ En uso normal el frontend se sirve vía `docker compose up -d` desde la raíz de
 
 | Carpeta | Contenido |
 |---|---|
-| `pages/` | Una por ruta: Dashboard, Assets (Inventario), Kanban, Scans (Centro de Escaneos), Login, Informes, Settings |
+| `pages/` | Una por ruta: Landing (pública, `/`), Dashboard, Assets (Inventario), Kanban (módulo de Vulnerabilidades: 4 vistas Resumen/Análisis/Listado/Kanban), Scans (Centro de Escaneos), Login, Informes, Settings |
 | `components/` | Compartidos: Layout, Sidebar, RequireAuth, Modal, PageHeader, StatCard, Table, VulnerabilityCard, SoftwareAutocomplete |
+| `components/vulnerabilidades/` | Las 3 vistas agregadas del módulo de Vulnerabilidades: `VulnerabilidadesResumen`, `VulnerabilidadesAnalisis`, `VulnerabilidadesListado` |
+| `components/landing/` | Secciones de la Landing pública (Hero, Features, FAQ, etc.) |
 | `contexts/` | `AuthContext` — único estado global (auth/sesión) |
 | `hooks/` | `useScanPolling` — polling de escaneos en curso |
 | `services/` | `api.ts` — cliente axios único + todos los módulos de API |
@@ -32,9 +34,19 @@ Detalle de routing, gating de roles y diseño del Kanban: [`docs/architecture/03
 
 No hay Redux, Zustand ni React Query. El patrón del proyecto es `useState`/`useEffect`/`useMemo` por página más un único `AuthContext` para sesión (persistida en `localStorage`: `gef_token`, `gef_user`). Mantené este patrón salvo que aparezca una necesidad real de estado compartido entre páginas que no sea auth — no introduzcas una librería de estado global para un caso puntual.
 
-## Testing — gap conocido
+## Testing
 
-Vitest + Testing Library están configurados (`vite.config.ts`, `src/test/setup.ts`), pero **hoy existe un solo archivo de test**: `pages/Assets.scan.test.tsx` (cubre un fix de race condition de doble click en el botón de escaneo). Esto es un gap de cobertura real, no un estado deseado — al tocar una página, considerá si vale la pena sumarle tests en el mismo cambio en vez de asumir que ya está cubierta.
+Vitest + Testing Library (`vite.config.ts`, `src/test/setup.ts`, que incluye polyfills de `matchMedia` e `IntersectionObserver` que jsdom no trae — los necesita cualquier componente de `components/landing/`). 5 archivos de test hoy, todos regresión de un bug real encontrado y corregido, no relleno genérico:
+
+| Archivo | Cubre |
+|---|---|
+| `pages/Assets.scan.test.tsx` | Race condition de doble click en el botón de escaneo |
+| `pages/Dashboard.banner.test.tsx` | El banner de estado deriva de la misma lista que "Requiere atención", no de un campo agregado aparte |
+| `components/vulnerabilidades/VulnerabilidadesResumen.test.tsx` | El botón "Ver Kanban" cambia de tab (prop), no navega por router |
+| `components/vulnerabilidades/slaStateOf.test.ts` | Lógica pura de estado de SLA (vencido/próximo/en plazo) |
+| `pages/Landing.auth.test.tsx` | Redirect a `/dashboard` requiere usuario Y token juntos en localStorage |
+
+Al tocar una página, considerá sumarle un test en el mismo cambio si toca lógica no trivial — sigue siendo cobertura parcial, no exhaustiva.
 
 ## API
 

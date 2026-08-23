@@ -36,6 +36,7 @@ public class SecurityConfig {
     private String[] allowedOrigins;
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final LoginRateLimitFilter loginRateLimitFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -79,6 +80,9 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .exceptionHandling(eh -> eh.authenticationEntryPoint(unauthorizedEntryPoint))
+            // DT-08 (docs/deuda-tecnica.md): antes de la cadena de auth -- así un intento
+            // bloqueado ni siquiera llega a validar credenciales contra la base.
+            .addFilterBefore(loginRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

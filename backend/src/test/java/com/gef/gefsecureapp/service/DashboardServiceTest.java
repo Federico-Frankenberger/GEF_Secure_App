@@ -53,6 +53,7 @@ class DashboardServiceTest {
         when(vulnRepository.countByPriority("CRITICAL")).thenReturn(2L);
         when(vulnRepository.countResolvedBetween(any(), any())).thenReturn(1L);
         when(vulnRepository.findAverageMttrDeclaredDays()).thenReturn(3.5);
+        when(vulnRepository.findAverageMttrVerifiedDays()).thenReturn(null);
         when(scanReportRepository.findFirstByExecutedAtNotNullOrderByExecutedAtDesc()).thenReturn(Optional.empty());
         when(vulnRepository.countGroupedByPriority()).thenReturn(List.of());
         when(vulnRepository.countGroupedByTriageStatus()).thenReturn(List.of());
@@ -215,5 +216,62 @@ class DashboardServiceTest {
         assertThat(stats.getCriticalVulnerabilities()).isEqualTo(0L);
         assertThat(stats.getSystemStatus()).isEqualTo("✅ ESTABLE");
         verify(vulnRepository, never()).countBySoftwareComponent_Asset_IdIn(any());
+    }
+
+    @Test
+    @DisplayName("DT-01: getStats() para ADMIN expone mttrVerifiedDays cuando hay cierres con evidencia E4+")
+    void getStats_admin_exponeMttrVerificado() {
+        TestAuth.loginAs(1L, "fede.frankenberger", "ADMIN");
+
+        when(assetRepository.countByDeletedAtIsNull()).thenReturn(1L);
+        when(vulnRepository.count()).thenReturn(1L);
+        when(vulnRepository.countByTriageStatus(any())).thenReturn(0L);
+        when(vulnRepository.countByPriority("CRITICAL")).thenReturn(0L);
+        when(vulnRepository.countResolvedBetween(any(), any())).thenReturn(0L);
+        when(vulnRepository.findAverageMttrDeclaredDays()).thenReturn(4.0);
+        when(vulnRepository.findAverageMttrVerifiedDays()).thenReturn(2.5);
+        when(scanReportRepository.findFirstByExecutedAtNotNullOrderByExecutedAtDesc()).thenReturn(Optional.empty());
+        when(vulnRepository.countGroupedByPriority()).thenReturn(List.of());
+        when(vulnRepository.countGroupedByTriageStatus()).thenReturn(List.of());
+        when(vulnRepository.countDailyDetections(any())).thenReturn(List.of());
+        when(vulnRepository.countDailyResolutions(any())).thenReturn(List.of());
+        when(vulnRepository.countByReopenCountGreaterThan(0)).thenReturn(0L);
+        when(vulnRepository.countAgingBuckets()).thenReturn(List.of());
+        when(vulnRepository.findAverageMttrDeclaredDaysByPriority()).thenReturn(List.of());
+        when(vulnRepository.countOpenGroupedByAssignedUser()).thenReturn(List.of());
+
+        DashboardStatsDTO stats = dashboardService.getStats();
+
+        assertThat(stats.getMttrDeclaredDays()).isEqualTo(4.0);
+        assertThat(stats.getMttrVerifiedDays()).isEqualTo(2.5);
+    }
+
+    @Test
+    @DisplayName("DT-01: getStats() para ASSET_OWNER usa la variante scopeada de mttrVerifiedDays, nunca la global")
+    void getStats_assetOwner_mttrVerificadoUsaVarianteScopeada() {
+        TestAuth.loginAs(10L, "owner.demo", "ASSET_OWNER");
+        Set<Long> scope = Set.of(1L, 2L);
+        when(userAssetAssignmentService.assignedAssetIds(10L)).thenReturn(scope);
+
+        when(assetRepository.countByIdInAndDeletedAtIsNull(scope)).thenReturn(2L);
+        when(vulnRepository.countBySoftwareComponent_Asset_IdIn(scope)).thenReturn(4L);
+        when(vulnRepository.countByTriageStatusAndSoftwareComponent_Asset_IdIn(any(), eq(scope))).thenReturn(1L);
+        when(vulnRepository.countByPriorityAndSoftwareComponent_Asset_IdIn("CRITICAL", scope)).thenReturn(0L);
+        when(vulnRepository.countResolvedBetween(any(), any(), eq(scope))).thenReturn(0L);
+        when(vulnRepository.findAverageMttrDeclaredDays(scope)).thenReturn(null);
+        when(vulnRepository.findAverageMttrVerifiedDays(scope)).thenReturn(1.2);
+        when(vulnRepository.countGroupedByPriority(scope)).thenReturn(List.of());
+        when(vulnRepository.countGroupedByTriageStatus(scope)).thenReturn(List.of());
+        when(vulnRepository.countDailyDetections(any(), eq(scope))).thenReturn(List.of());
+        when(vulnRepository.countDailyResolutions(any(), eq(scope))).thenReturn(List.of());
+        when(vulnRepository.countByReopenCountGreaterThanAndSoftwareComponent_Asset_IdIn(0, scope)).thenReturn(1L);
+        when(vulnRepository.countAgingBuckets(scope)).thenReturn(List.of());
+        when(vulnRepository.findAverageMttrDeclaredDaysByPriority(scope)).thenReturn(List.of());
+        when(vulnRepository.countOpenGroupedByAssignedUser(scope)).thenReturn(List.of());
+
+        DashboardStatsDTO stats = dashboardService.getStats();
+
+        assertThat(stats.getMttrVerifiedDays()).isEqualTo(1.2);
+        verify(vulnRepository, never()).findAverageMttrVerifiedDays();
     }
 }

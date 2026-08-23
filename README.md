@@ -11,20 +11,22 @@ Resuelta) con métricas de MTTR.
 |---|---|
 | Estado | En desarrollo activo |
 | Versión | 2.0.0 (ver [CHANGELOG](CHANGELOG.md) para cambios posteriores sin release formal) |
-| Última actualización | 2026-08-22 |
+| Última actualización | 2026-08-23 |
 | Ambiente productivo | No — pensado para levantarse localmente vía Docker Compose |
 
 ## Características principales
 
+- Landing pública comercial (`/`) para visitantes no autenticados — presenta el producto antes del login; un usuario ya logueado que llega a `/` es redirigido directo a su Dashboard.
 - Inventario de activos (hosts/apps/VMs) y del software instalado en cada uno, con importación de SBOM (Syft) o carga manual.
 - Escaneo automatizado que cruza ese inventario contra GitHub Advisory Database y CISA KEV.
 - Priorización de hallazgos por CVSS + criticidad de negocio del entorno + presencia en CISA KEV + zero-day.
-- Ciclo de vida de vulnerabilidades en Kanban (Detectada → En Análisis → Resuelta), con cierre estilo VEX (Mitigada / No aplica / Riesgo aceptado).
+- Módulo de Vulnerabilidades con 4 vistas (misma ruta `/kanban`): **Resumen** (riesgo agregado y hallazgos que requieren atención), **Análisis** (distribución y tendencias), **Listado** (tabla filtrable/ordenable con SLA por vencimiento, paginación server-side) y **Kanban** (ciclo de vida Detectada → En Análisis → Resuelta, con cierre estilo VEX: Mitigada / No aplica / Riesgo aceptado).
 - Centro de Escaneos: disparo por activo, por componente de software, por entorno o global, con seguimiento de progreso en la UI.
-- Dashboard con MTTR, aging y breakdowns por severidad/estado/responsable.
+- Dashboard con MTTR declarado y MTTR **verificado** (solo cuenta cierres con evidencia técnica real, no una declaración humana), aging y breakdowns por severidad/estado/responsable.
 - RBAC con 4 roles (`ADMIN`, `SECURITY_ANALYST`, `ASSET_OWNER`, `AUDITOR`) y scoping de activos por usuario.
-- Auditoría append-only del historial de cada hallazgo (quién, cuándo, con qué evidencia).
+- Auditoría append-only del historial de cada hallazgo (quién, cuándo, con qué evidencia), con reconciliación automática de vínculos huérfanos al escaneo automático más cercano.
 - Notificaciones por Slack y automatización completa vía n8n (self-hosted).
+- Rate limiting en `/api/auth/login` (10 intentos/min por IP) y CI/CD con GitHub Actions (tests de backend y frontend en cada push/PR, Dependabot y CodeQL).
 
 ## Stack
 
@@ -145,8 +147,7 @@ cd frontend && npm run test
 ```
 
 Detalle de qué cubre cada suite en [`backend/README.md`](backend/README.md) y
-[`frontend/README.md`](frontend/README.md) — la cobertura del frontend hoy es
-mínima, es un gap conocido (ver [deuda técnica](docs/deuda-tecnica.md), DT-02).
+[`frontend/README.md`](frontend/README.md).
 
 ## Estructura relevante
 
@@ -163,16 +164,21 @@ init/                   Scripts SQL de inicialización de Postgres (esquema + da
 ## Roadmap
 
 Basado en lo real registrado en [`docs/deuda-tecnica.md`](docs/deuda-tecnica.md) —
-no incluye nada que no esté ya identificado como pendiente:
+no incluye nada que no esté ya identificado como pendiente. Todos los ítems de deuda
+técnica registrados hasta la fecha (DT-01 a DT-11) están cerrados; el archivo se
+mantiene como registro histórico de qué se decidió implementar vs. dejar así
+conscientemente.
 
 - [x] Inventario de activos + software, escaneo automatizado, priorización de riesgo
-- [x] Ciclo de vida de vulnerabilidades (Kanban) + cierre VEX
+- [x] Módulo de Vulnerabilidades con 4 vistas (Resumen/Análisis/Listado/Kanban) + cierre VEX
 - [x] RBAC con 4 roles + scoping por activo
-- [x] Centro de Escaneos + Dashboard con MTTR declarado
-- [ ] MTTR verificado (hoy es un stub, ver DT-01)
-- [ ] Backup automatizado de Postgres/n8n (hoy es manual, ver DT-06)
-- [ ] Escaneo automatizado de las dependencias propias del proyecto (ver DT-07)
-- [ ] Ampliar cobertura de tests del frontend (ver DT-02)
+- [x] Centro de Escaneos + Dashboard con MTTR declarado y MTTR verificado
+- [x] Landing pública comercial
+- [x] Backup real de Postgres/n8n vía `scripts/backup.sh` (ejecución sigue siendo manual — no hay servidor productivo real donde programar un cron todavía)
+- [x] CI/CD (GitHub Actions), Dependabot y CodeQL sobre las dependencias propias del proyecto
+- [x] Rate limiting básico en `/api/auth/login`
+- [x] Cobertura de tests del frontend ampliada (de 1 a 5 archivos)
+- [ ] Ejecución automática y periódica del backup (cron/Task Scheduler) una vez exista un servidor productivo real
 
 ## Más documentación
 

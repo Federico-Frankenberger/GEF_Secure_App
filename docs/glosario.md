@@ -24,7 +24,7 @@ conocimiento) y en el propio dominio de GEF Secure.
 | **detectionStatus** | Estado de detección gestionado por el sistema (`OPEN`/`RESOLVED`) — refleja si el escáner sigue viendo la vulnerabilidad presente. No lo controla el analista. |
 | **triageStatus** | Estado de triage gestionado por el analista (`DETECTADA`/`EN_ANALISIS`/`RESUELTA`) — el que se ve en el Kanban. Puede divergir del `detectionStatus` (ver `docs/adr/0004-modelo-dual-de-estado-deteccion-triage.md`). |
 | **Escala de evidencia (E0-E6)** | Nivel de evidencia que respalda una transición de estado en `StateTransition`, de E0 (sin evidencia) a E6 (verificación técnica completa). |
-| **MTTR** | Mean Time To Remediate/Resolve — tiempo promedio entre detección y resolución. GEF Secure hoy calcula `mttrDeclaradoDays` (basado en lo que el analista marca); `mttrVerifiedDays` es un stub sin implementar (ver `docs/deuda-tecnica.md`). |
+| **MTTR** | Mean Time To Remediate/Resolve — tiempo promedio entre detección y resolución. GEF Secure calcula dos variantes: `mttrDeclaredDays` (basado en lo que el analista marca) y `mttrVerifiedDays` (solo cuenta cierres con `evidenceLevel` E4+, verificación técnica real — ver `docs/deuda-tecnica.md`, DT-01). |
 
 ## Autenticación y autorización
 

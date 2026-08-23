@@ -50,6 +50,12 @@ vi.mock('../services/api', () => ({
   },
   inventoryApi: {},
   scanApi: { latestReport },
+  // Assets.tsx carga el estado de seguridad de cada activo (columna agregada
+  // en el rediseño de Vulnerabilidades) vía vulnApi.getAll() -- sin este mock
+  // el componente rompe al montar (DT-10, docs/deuda-tecnica.md: encontrado
+  // al armar el pipeline de CI, que corrió esta suite por primera vez en
+  // mucho tiempo).
+  vulnApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
 }))
 
 describe('Assets.tsx — handleScan (FE-06)', () => {

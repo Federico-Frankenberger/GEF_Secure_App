@@ -175,6 +175,14 @@ export default function Dashboard() {
               <p className="text-[10px] text-slate-500 uppercase tracking-wider">MTTR declarado</p>
               <p className="text-sm font-semibold text-white font-mono">{loading ? '—' : formatMttr(stats?.mttrDeclaredDays)}</p>
             </div>
+            {/* DT-01: antes siempre null (stub) -- ahora mide contra cierres con evidencia
+                E4+ (verificación técnica real, no la declaración del analista). "—" cuando
+                todavía no hay ningún cierre con ese nivel de evidencia, nunca un número
+                inventado. */}
+            <div className="text-right" title="Solo cuenta cierres con evidencia E4+ (verificación técnica real, ej. versión corregida confirmada)">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">MTTR verificado</p>
+              <p className="text-sm font-semibold text-white font-mono">{loading ? '—' : formatMttr(stats?.mttrVerifiedDays)}</p>
+            </div>
             <div className="text-right">
               <p className="text-[10px] text-slate-500 uppercase tracking-wider">Tasa de recurrencia</p>
               <p className="text-sm font-semibold text-white font-mono">{loading ? '—' : formatRecurrenceRate(stats?.recurrenceRate)}</p>

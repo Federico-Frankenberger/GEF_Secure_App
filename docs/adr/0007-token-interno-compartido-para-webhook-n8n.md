@@ -28,3 +28,34 @@ Proteger estos endpoints con un header compartido `X-Internal-Token`, un secreto
 - **JWT de servicio para n8n** (un token de larga vida emitido para una "cuenta de servicio" n8n): reutiliza la misma infraestructura de JWT que ya existe, pero agrega la necesidad de un usuario/rol especial solo para este caso y hereda el mismo problema de no-revocación que ADR-0001 ya acepta para usuarios humanos, sin ganar nada a cambio del token compartido más simple.
 - **mTLS entre n8n y el backend**: da autenticación mutua fuerte a nivel de transporte, pero requiere gestión de certificados que excede la infraestructura actual (Docker Compose local/demo) para el beneficio marginal que aporta en este contexto.
 - **IP allowlisting en vez de token**: frágil en un entorno Docker Compose donde los servicios se resuelven por nombre de red interna, no aporta una garantía adicional real sobre la red interna de Docker, y no protege si algún día el webhook se expone más allá de la red interna.
+
+## Addendum (DT-05, docs/deuda-tecnica.md, 2026-08-23)
+
+Se revisó si convenía agregar rotación/expiración automática (ej. HMAC con
+ventana de tiempo) al token. Se descartó por la misma razón que ya rechazó
+mTLS/JWT-de-servicio arriba: agrega complejidad de sincronización (relojes,
+misma lógica de derivación en n8n y en el backend) sin un beneficio real para
+el modelo de confianza actual (un único colaborador interno de confianza,
+Docker Compose local/demo). En cambio, se formalizó lo que sí faltaba: un
+procedimiento de **rotación manual** documentado y verificable, para que "si
+se filtra, queda válido indefinidamente" (la consecuencia negativa aceptada
+arriba) al menos no dependa de improvisar los pasos en el momento.
+
+**Procedimiento de rotación manual**:
+
+1. Generar un valor nuevo: `openssl rand -base64 32`.
+2. Actualizar `N8N_INTERNAL_TOKEN` en `.env` (no versionado, editar directo en
+   el servidor/entorno correspondiente).
+3. Reiniciar los dos servicios que leen esa variable (ambos la necesitan
+   igual, no hay downtime parcial tolerable):
+   `docker compose up -d --force-recreate backend n8n`.
+4. Verificar: disparar un escaneo manual desde la app y confirmar que
+   `/api/webhook/scan-report` sigue completando el `ScanReport` (si el
+   token quedó desalineado entre `n8n` y `backend`, esto falla de forma
+   visible — ver la Sección "Negative" arriba, "corta silenciosamente la
+   ingesta").
+
+Sin cadencia automática definida (igual que DT-06, no hay todavía un
+scheduler productivo real) — recomendado rotar ante cualquier sospecha de
+filtración, y como buena práctica periódica una vez que el proyecto tenga un
+entorno productivo real.

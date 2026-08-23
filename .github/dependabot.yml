@@ -1,0 +1,33 @@
+# DT-07 (docs/deuda-tecnica.md): antes ninguna dependencia propia del proyecto
+# tenía escaneo automatizado -- irónico para un proyecto de gestión de
+# vulnerabilidades. Cubre los 2 ecosistemas reales del repo: Gradle (backend)
+# y npm (frontend). Requiere que el repo esté en GitHub con Dependabot
+# habilitado (Settings > Security > Dependabot) para que esto tenga efecto --
+# el archivo por sí solo no activa nada si esa opción está apagada.
+version: 2
+updates:
+  - package-ecosystem: "gradle"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "backend"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "ci"

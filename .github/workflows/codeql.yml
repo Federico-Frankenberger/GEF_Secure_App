@@ -1,0 +1,44 @@
+# DT-07 (docs/deuda-tecnica.md): SAST -- análisis estático de seguridad del
+# código propio (Java + TypeScript/JavaScript), complementa a Dependabot
+# (.github/dependabot.yml, que cubre vulnerabilidades de DEPENDENCIAS, no de
+# código propio). CodeQL es gratuito en repos públicos y en privados de
+# organizaciones/cuentas con GitHub Advanced Security -- si el repo es privado
+# sin esa licencia, este workflow fallará al no poder subir el análisis; en
+# ese caso, deshabilitarlo o esperar a que el repo sea público.
+name: CodeQL
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "0 6 * * 1" # lunes 06:00 UTC
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["java-kotlin", "javascript-typescript"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

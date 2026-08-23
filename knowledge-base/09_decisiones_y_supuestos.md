@@ -30,28 +30,22 @@ Formalizadas como ADRs en `docs/adr/` — acá solo el resumen ejecutivo, ir a c
 
 ### DD-07 — Token interno compartido para el webhook n8n (ADR-0007)
 **Decisión**: `X-Internal-Token` en vez de JWT para las llamadas n8n→backend.
-**Trade-off aceptado**: sin rotación ni expiración del token hoy — es un secreto de larga vida.
+**Trade-off aceptado**: sin rotación ni expiración automática del token — se evaluó (HMAC con ventana de validez) y se descartó por la misma razón que el propio ADR-0007 rechazó mTLS/JWT-de-servicio: complejidad sin beneficio real para el modelo de confianza actual. Formalizado como riesgo aceptado, con un procedimiento de rotación manual documentado (addendum en el ADR, `docs/deuda-tecnica.md` DT-05).
 
 ### DD-08 — Auditoría inmutable append-only (ADR-0008)
 **Decisión**: `VulnerabilityAudit`/`RemediationCycle`/`StateTransition` nunca se editan, solo se agregan filas.
-**Trade-off aceptado**: crecimiento continuo de estas tablas sin estrategia de archivado definida todavía.
+**Trade-off aceptado**: crecimiento continuo de estas tablas. Decisión tomada (DT-03): no purgar/archivar por ahora — tamaño real medido en el orden de decenas de KB, faltan años al ritmo real de uso para que sea un problema. Alternativa documentada (particionar por año) y umbral para reabrir la decisión (orden de GB) en `docs/architecture/07-disponibilidad-y-recuperacion.md`.
 
-## Supuestos inferidos
+## Supuestos inferidos (resueltos — ver `docs/deuda-tecnica.md` para el cierre completo de cada uno)
 
-### SU-01 — MTTR mostrado es siempre "declarado", nunca "verificado"
-**Supuesto**: el KPI de MTTR en el Dashboard refleja cuándo el analista marcó RESUELTA, no una confirmación técnica independiente de que la vulnerabilidad efectivamente dejó de existir.
-**Origen**: `DashboardService` — `mttrVerifiedDays` está en el modelo pero el método que lo calcula devuelve `null` (stub).
-**Riesgo si es falso** (es decir, si se asumiera que sí está verificado): sobreestimar la confiabilidad del KPI frente a un cliente o en una auditoría externa.
-**Cómo validar**: leer `DashboardService.calcularMttr*` y confirmar que no hay lógica de verificación técnica implementada.
+### SU-01 — MTTR mostrado era siempre "declarado", nunca "verificado" — ✅ Resuelto
+**Supuesto original**: el KPI de MTTR en el Dashboard reflejaba cuándo el analista marcó RESUELTA, no una confirmación técnica independiente.
+**Resolución** (DT-01): implementado `mttrVerifiedDays` — mide el tiempo hasta cierres con `evidenceLevel` E4+ (verificación técnica real), expuesto en el Dashboard junto al declarado.
 
-### SU-02 — El horario del scan automático global es 09:00, no 21:00
-**Supuesto**: el valor correcto y vigente es 09:00 (`Scan_Scheduler.triggerAtHour: 9` en `workflows/*.json`).
-**Origen**: discrepancia detectada entre el README (decía 21:00) y el workflow real; confirmado con el responsable del proyecto que 09:00 es el valor correcto, README corregido en consecuencia.
-**Riesgo si es falso**: si en producción se cambió manualmente a otra hora dentro de la UI de n8n sin re-exportar el JSON, el workflow versionado en git quedaría desactualizado.
-**Cómo validar**: inspeccionar la configuración real del workflow activo en la instancia de n8n corriendo (no solo el JSON en git) antes de una demo en vivo.
+### SU-02 — El horario del scan automático global es 09:00, no 21:00 — ✅ Confirmado
+**Supuesto original**: el valor correcto y vigente es 09:00 (`Scan_Scheduler.triggerAtHour: 9` en `workflows/*.json`).
+**Resolución** (DT-09): verificado contra la instancia de n8n corriendo en vivo (no solo el JSON en git) — coincide, sin drift. Corroborado con una ejecución real observada a las 09:03.
 
-### SU-03 — AUDITOR no tiene reglas `@PreAuthorize` explícitas en todos los endpoints
-**Supuesto**: AUDITOR obtiene acceso de solo lectura "por defecto" (cualquier usuario autenticado) en los endpoints que no restringen explícitamente por rol, más que por una regla `@PreAuthorize("hasRole('AUDITOR')")` dedicada en cada uno.
-**Origen**: los exploradores de código no encontraron referencias explícitas a AUDITOR en la mayoría de los `@PreAuthorize` revisados.
-**Riesgo si es falso**: AUDITOR podría tener permisos de escritura no intencionados en algún endpoint que solo verifica "autenticado", no "de solo lectura".
-**Cómo validar**: grep de `@PreAuthorize` en todos los controladores y confirmar que ningún endpoint de escritura (POST/PUT/PATCH/DELETE) queda accesible sin una allowlist de roles que excluya a AUDITOR.
+### SU-03 — AUDITOR no tenía reglas `@PreAuthorize` explícitas en todos los endpoints — ✅ Descartado
+**Supuesto original**: AUDITOR podría depender del fallback "autenticado = accesible" en vez de una regla dedicada.
+**Resolución** (DT-04): auditados los 20 controllers uno por uno — todo endpoint de escritura (POST/PUT/PATCH/DELETE) excluye a AUDITOR explícitamente. El fallback "autenticado = accesible" solo aplica a catálogos genéricos sin dato de la organización, donde es el comportamiento deseado. Sin fugas encontradas.

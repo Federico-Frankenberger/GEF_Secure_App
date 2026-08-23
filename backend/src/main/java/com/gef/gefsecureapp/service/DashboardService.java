@@ -42,7 +42,7 @@ public class DashboardService {
         // no detecciones individuales -- un CVE re-detectado en 5 escaneos
         // cuenta una sola vez, no cinco.
         long totalVulns, openVulns, criticals, resolvedThisMonth, reopenedCasesCount;
-        Double mttrDeclaredDays;
+        Double mttrDeclaredDays, mttrVerifiedDays;
         List<Object[]> severityRows, statusRows, detectionsRows, resolutionsRows, agingRows, mttrByPriorityRows, byResponsibleRows;
 
         LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
@@ -55,6 +55,7 @@ public class DashboardService {
             criticals           = vulnRepository.countByPriority("CRITICAL");
             resolvedThisMonth   = vulnRepository.countResolvedBetween(startOfMonth, LocalDateTime.now());
             mttrDeclaredDays    = vulnRepository.findAverageMttrDeclaredDays();
+            mttrVerifiedDays    = vulnRepository.findAverageMttrVerifiedDays();
             severityRows        = vulnRepository.countGroupedByPriority();
             statusRows          = vulnRepository.countGroupedByTriageStatus();
             detectionsRows      = vulnRepository.countDailyDetections(since);
@@ -70,6 +71,7 @@ public class DashboardService {
             criticals           = scope.isEmpty() ? 0 : vulnRepository.countByPriorityAndSoftwareComponent_Asset_IdIn("CRITICAL", scope);
             resolvedThisMonth   = scope.isEmpty() ? 0 : vulnRepository.countResolvedBetween(startOfMonth, LocalDateTime.now(), scope);
             mttrDeclaredDays    = scope.isEmpty() ? null : vulnRepository.findAverageMttrDeclaredDays(scope);
+            mttrVerifiedDays    = scope.isEmpty() ? null : vulnRepository.findAverageMttrVerifiedDays(scope);
             severityRows        = scope.isEmpty() ? List.of() : vulnRepository.countGroupedByPriority(scope);
             statusRows          = scope.isEmpty() ? List.of() : vulnRepository.countGroupedByTriageStatus(scope);
             detectionsRows      = scope.isEmpty() ? List.of() : vulnRepository.countDailyDetections(since, scope);
@@ -145,7 +147,7 @@ public class DashboardService {
                 .criticalVulnerabilities(criticals)
                 .resolvedThisMonth(resolvedThisMonth)
                 .mttrDeclaredDays(mttrDeclaredDays)
-                .mttrVerifiedDays(null) // Fase 8: requiere el Componente D (verificacion real)
+                .mttrVerifiedDays(mttrVerifiedDays) // DT-01: implementado, ver findAverageMttrVerifiedDays
                 .systemStatus(systemStatus)
                 .severityDistribution(severityDist)
                 .statusDistribution(statusDist)

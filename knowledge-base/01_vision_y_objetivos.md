@@ -22,14 +22,13 @@ GEF Secure es un sistema de gestión automatizada de vulnerabilidades: cruza el 
 - Modelo de cierre inspirado en VEX (MITIGADA / NO_APLICA / RIESGO_ACEPTADO) con justificación obligatoria.
 - Auditoría append-only de hallazgos y transiciones de estado, con escala de evidencia E0–E6.
 - RBAC de 4 roles con scoping de activos para ASSET_OWNER.
-- Dashboard con MTTR declarado, tasa de recurrencia y desgloses por severidad/entorno.
+- Dashboard con MTTR declarado y MTTR **verificado** (solo cuenta cierres con evidencia técnica real, `evidenceLevel` E4+), tasa de recurrencia y desgloses por severidad/entorno.
 - Notificaciones a Slack y reportes PDF (ejecutivo, por escaneo, por CVE).
 
 ## Fuera de alcance
 
-- MTTR **verificado** (basado en confirmación técnica real de la remediación, no solo en el cambio de estado declarado por el analista) — campo `mttrVerifiedDays` existe en el modelo pero no está implementado (stub, ver `10_preguntas_abiertas.md`).
 - Revocación de tokens JWT antes de su expiración natural (ver ADR-0001).
-- Rotación automática del token interno n8n↔backend (ver ADR-0007).
+- Rotación automática del token interno n8n↔backend — se evaluó y se descartó a propósito, mismo criterio que ADR-0007 (ver `docs/deuda-tecnica.md`, DT-05); queda un procedimiento de rotación manual documentado.
 - Escaneo de vulnerabilidades más allá de lo que exponen GitHub Advisory DB y CISA KEV (no hay motor propio de detección, no hay integración con Qualys/Tenable/Nessus/etc.).
 - Gestión de usuarios externos o self-service signup — los usuarios se administran manualmente vía ADMIN.
 

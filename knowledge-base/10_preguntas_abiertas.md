@@ -1,26 +1,28 @@
 # Preguntas Abiertas
 
-## Inconsistencias detectadas
+## Inconsistencias detectadas (resueltas)
 
-### IN-01 — Horario del scan automático global (README vs. workflow n8n)
-**Documento A dice**: `README.md` (previo a esta ronda de documentación) afirmaba "corre un scan global automático todos los días a las 21:00".
-**Documento B dice**: `workflows/Pipeline de Gestión Automatizada de Vulnerabilidades (VMP).json`, nodo `Scan_Scheduler`, tiene `triggerAtHour: 9` (09:00).
-**Impacto**: expectativas operativas equivocadas (alguien podría esperar el scan a la noche y no verlo correr).
-**Resolución propuesta / aplicada**: se confirmó con el responsable del proyecto que 09:00 es el valor correcto. El README y los nuevos docs (`docs/architecture/04-n8n-pipeline.md`, `n8n/README.md`) ya quedaron corregidos con 09:00 en esta misma ronda de trabajo. **Pendiente real**: verificar que la instancia de n8n en producción/demo esté efectivamente configurada a las 09:00 y no haya sido cambiada manualmente en la UI sin re-exportar el JSON.
+### IN-01 — Horario del scan automático global (README vs. workflow n8n) — ✅ Resuelto
+**Documento A decía**: `README.md` (previo a esta ronda de documentación) afirmaba "corre un scan global automático todos los días a las 21:00".
+**Documento B decía**: `workflows/Pipeline de Gestión Automatizada de Vulnerabilidades (VMP).json`, nodo `Scan_Scheduler`, tiene `triggerAtHour: 9` (09:00).
+**Resolución**: confirmado con el responsable del proyecto que 09:00 es el valor correcto; README y docs corregidos. Verificado además contra la instancia de n8n corriendo en vivo (no solo el JSON en git, ver DT-09 en `docs/deuda-tecnica.md`): `Scan_Scheduler.triggerAtHour=9`, sin drift entre config real y versionada — corroborado con una ejecución real observada a las 09:03.
 
-### IN-02 — `mttrVerifiedDays` existe en el modelo pero no está implementado
-**Documento A dice**: el modelo de datos y el Dashboard exponen un concepto de "MTTR verificado" (distinto del declarado).
-**Documento B dice**: `DashboardService` solo implementa `mttrDeclaradoDays`; el campo/método para verificado es un stub que no calcula nada real (retorna null o equivalente).
-**Impacto**: si se presenta el sistema (ej. a un cliente o inversor) sugiriendo que el MTTR está "verificado técnicamente", sería inexacto — hoy es puramente declarativo (lo que el analista marca).
-**Resolución propuesta**: documentarlo explícitamente como gap conocido (ya hecho en `01_vision_y_objetivos.md` §Fuera de alcance y `docs/architecture/02-backend.md`) y decidir si se implementa antes de la entrega final o se deja fuera de alcance formalmente.
+### IN-02 — `mttrVerifiedDays` existía en el modelo pero no estaba implementado — ✅ Resuelto
+**Documento A decía**: el modelo de datos y el Dashboard exponen un concepto de "MTTR verificado" (distinto del declarado).
+**Documento B decía**: `DashboardService` solo implementaba `mttrDeclaradoDays`; el campo para verificado era un stub que no calculaba nada real.
+**Resolución** (DT-01 en `docs/deuda-tecnica.md`): implementado `AssetVulnerabilityRepository.findAverageMttrVerifiedDays()` — mide el tiempo de cierre solo para hallazgos con `evidenceLevel` E4+ (verificación técnica real, no una declaración humana). Expuesto en el Dashboard junto al declarado. Devuelve vacío (no un número inventado) mientras no haya ningún cierre con esa evidencia.
 
-## Preguntas abiertas (priorizadas)
+## Preguntas priorizadas (todas resueltas — ver `docs/deuda-tecnica.md` para el detalle de cada cierre)
 
-| Prioridad | Pregunta | Bloquea | Decisor |
-|-----------|----------|---------|---------|
-| Alta | ¿La instancia de n8n real (no solo el JSON en git) tiene el scan configurado a las 09:00? | Confiabilidad de la documentación operativa antes de una demo | Responsable del proyecto |
-| Alta | ¿Se va a implementar `mttrVerifiedDays` o queda formalmente fuera de alcance de esta versión? | Alcance del producto, contenido del Dashboard | Responsable del proyecto |
-| Media | ¿AUDITOR tiene reglas `@PreAuthorize` explícitas en todos los endpoints, o depende del fallback "autenticado = accesible"? (ver SU-03 en `09_decisiones_y_supuestos.md`) | Corrección del modelo RBAC documentado | Equipo técnico |
-| Media | ¿Hay un plan de archivado/retención para `VulnerabilityAudit`/`StateTransition` (append-only, crecimiento sin límite)? | Escalabilidad de largo plazo, no bloquea la versión actual | Equipo técnico |
-| Baja | ¿El token `X-Internal-Token` (n8n↔backend) se va a rotar o dotar de expiración en el futuro? | Endurecimiento de seguridad post-entrega | Responsable del proyecto |
-| Baja | Los binarios `.docx`/`.pdf` en `docs/All/` (ej. `Tracking_Remediacion_Marco_de_Referencia_v3.docx`, varios PDFs) no se parsearon en profundidad para esta KB — se usaron como contexto secundario a partir de su nombre y de lo ya sintetizado en `docs/adr/` y `docs/architecture/`. Si contienen decisiones no reflejadas en el código actual, revisarlos manualmente. | Completitud de la KB | Responsable del proyecto |
+| Prioridad | Pregunta | Resolución |
+|-----------|----------|------------|
+| Alta | ¿La instancia de n8n real tiene el scan configurado a las 09:00? | Sí, verificado en vivo (DT-09) |
+| Alta | ¿Se va a implementar `mttrVerifiedDays` o queda fuera de alcance? | Implementado (DT-01) |
+| Media | ¿AUDITOR tiene reglas `@PreAuthorize` explícitas en todos los endpoints? | Auditado uno por uno, sin fugas — todo endpoint de escritura lo excluye explícitamente (DT-04) |
+| Media | ¿Hay un plan de archivado/retención para `VulnerabilityAudit`/`StateTransition`? | Decisión documentada: no purgar ahora (tamaño real en el orden de decenas de KB), con umbral y alternativa (particionar por año) para cuando sí haga falta (DT-03) |
+| Baja | ¿El token `X-Internal-Token` se va a rotar o dotar de expiración? | Se evaluó y se descartó automatizarlo (mismo criterio que ADR-0007); se documentó el procedimiento de rotación manual paso a paso (DT-05) |
+| Baja | Los binarios `.docx`/`.pdf` en `docs/All/` no se parsearon en profundidad para esta KB. | Sigue como contexto histórico/secundario — no bloqueante, no forma parte de la deuda técnica registrada |
+
+## Gaps nuevos encontrados durante el cierre de deuda técnica (no bloqueantes)
+
+- `WebhookController./vulnerabilities` y `/error` son endpoints inalcanzables: el pipeline real de n8n persiste hallazgos con nodos Postgres directos, nunca llama a esas rutas por HTTP. No es un problema de seguridad (fallan cerrados, exigen JWT que n8n no tiene) — es código muerto, candidato a eliminar en una pasada de limpieza si se decide hacerlo (hallazgo lateral de DT-04, no una tarea abierta en sí).

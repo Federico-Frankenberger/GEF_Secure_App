@@ -18,7 +18,7 @@ const SLA_LABEL: Record<SlaState, string> = {
   VENCIDO: 'Vencido', PROXIMO: 'Próximo a vencer', EN_PLAZO: 'En plazo',
 }
 
-function slaStateOf(dueDate: string | null | undefined): SlaState | null {
+export function slaStateOf(dueDate: string | null | undefined): SlaState | null {
   if (!dueDate) return null
   const days = (new Date(dueDate).getTime() - Date.now()) / 86_400_000
   if (days < 0) return 'VENCIDO'

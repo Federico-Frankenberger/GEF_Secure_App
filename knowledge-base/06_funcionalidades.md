@@ -49,7 +49,33 @@ Organizadas por épica y luego por historia de usuario. Mapeadas a las páginas 
 
 **Reglas relacionadas**: RN-SCAN-01
 
-## Épica 3: Triage de vulnerabilidades (Kanban)
+## Épica 3: Gestión de vulnerabilidades (Resumen, Análisis, Listado, Kanban)
+
+Módulo con 4 vistas sobre la misma ruta (`/kanban`, `frontend/src/pages/Kanban.tsx`
+exporta `Vulnerabilidades`) y el mismo modal de detalle compartido — el Kanban ya
+no es la única vista de este módulo, es una de cuatro.
+
+### US-010 — Ver el riesgo agregado y qué requiere atención ahora
+**Como** cualquier rol autenticado
+**Quiero** ver, al entrar al módulo, un resumen de riesgo (críticas abiertas, explotadas, próximas a vencer SLA) y la lista de hallazgos que requieren atención
+**Para** saber qué mirar primero sin tener que interpretar el Kanban completo
+
+**Criterios de aceptación**:
+- [ ] CA-1: el botón "Ver Kanban" cambia al tab Kanban (prop `onGoToKanban`), no navega por router — ya está en la misma ruta (cubierto por `VulnerabilidadesResumen.test.tsx`)
+- [ ] CA-2: la lista de "requiere atención" es la única fuente de verdad para el estado del sistema — el Dashboard deriva su banner de la misma lista, no de un campo agregado aparte (cubierto por `Dashboard.banner.test.tsx`)
+
+**Reglas relacionadas**: —
+
+### US-011 — Investigar el listado completo con filtros y SLA
+**Como** SECURITY_ANALYST o ADMIN
+**Quiero** una tabla filtrable/ordenable (severidad, estado, activo, componente, responsable, explotada, CISA KEV) con paginación server-side y una columna de estado de SLA
+**Para** investigar hallazgos puntuales sin descargar todo el dataset al navegador
+
+**Criterios de aceptación**:
+- [ ] CA-1: el estado de SLA (Vencido / Próximo a vencer / En plazo) se calcula por `dueDate` — vencido si ya pasó, próximo si faltan menos de 7 días, en plazo si faltan 7 o más (`slaStateOf`, cubierto por `slaStateOf.test.ts`)
+- [ ] CA-2: cambiar cualquier filtro vuelve a la primera página; guardar un hallazgo desde el detalle refresca el listado sin resetear los filtros activos
+
+**Reglas relacionadas**: —
 
 ### US-005 — Triagear un hallazgo en el Kanban
 **Como** SECURITY_ANALYST
@@ -82,7 +108,7 @@ Organizadas por épica y luego por historia de usuario. Mapeadas a las páginas 
 
 **Criterios de aceptación**:
 - [ ] CA-1: MTTR se muestra en horas si es menor a 1 día, en días con 1 decimal en caso contrario
-- [ ] CA-2: MTTR **verificado** no está implementado — el KPI mostrado es siempre declarado (ver `10_preguntas_abiertas.md`)
+- [ ] CA-2: MTTR **verificado** se muestra junto al declarado — solo cuenta cierres con `evidenceLevel` E4+ (verificación técnica real, ej. un inventario posterior que confirma la versión corregida), no una declaración humana. Devuelve vacío si todavía no hay ningún cierre con esa evidencia, nunca un número inventado
 
 **Reglas relacionadas**: RN-VUL-06
 
@@ -108,3 +134,16 @@ Organizadas por épica y luego por historia de usuario. Mapeadas a las páginas 
 - [ ] CA-2: el catálogo de tipos de activo/ecosistemas es editable solo por ADMIN
 
 **Reglas relacionadas**: RN-RBAC-01, RN-RBAC-02
+
+## Épica 6: Landing pública
+
+### US-012 — Presentar el producto antes del login
+**Como** visitante no autenticado
+**Quiero** ver una landing comercial en `/` que explique el producto (problema/solución, cómo funciona, features, arquitectura de seguridad, FAQ, contacto)
+**Para** entender de qué se trata GEF Secure antes de pedir acceso
+
+**Criterios de aceptación**:
+- [ ] CA-1: un usuario ya autenticado que llega a `/` es redirigido a `/dashboard` — la landing nunca se le muestra a una sesión activa (requiere usuario Y token juntos en localStorage, no solo uno de los dos — cubierto por `Landing.auth.test.tsx`)
+- [ ] CA-2: sin sesión, `/` muestra la landing completa, no un formulario de login directo
+
+**Reglas relacionadas**: —
