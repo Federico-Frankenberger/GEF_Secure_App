@@ -20,12 +20,14 @@ updates:
       # comentario en build.gradle. No proponer major bumps para esta lib.
       - dependency-name: "com.github.librepdf:openpdf"
         update-types: ["version-update:semver-major"]
-      # springdoc-openapi 3.x requiere una versión de Spring Boot más nueva
-      # que la 3.3.4 que usa este proyecto -- probado en vivo (2026-08-23):
-      # rompe el arranque del contexto (ClassNotFoundException). No proponer
-      # major bumps hasta que el proyecto migre de Spring Boot.
+      # springdoc-openapi por encima de 2.6.x ya rompe -- probado en vivo
+      # (2026-08-23) con 2.9.0 (no solo 3.x): falta
+      # org.springframework.web.servlet.resource.LiteWebJarsResourceResolver,
+      # una clase que no existe en el Spring Framework que trae Spring Boot
+      # 3.3.4. No es un problema de "major", es un problema de compatibilidad
+      # real -- bloquear también minor hasta que el proyecto migre de Spring Boot.
       - dependency-name: "org.springdoc:springdoc-openapi-starter-webmvc-ui"
-        update-types: ["version-update:semver-major"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: "npm"
     directory: "/frontend"

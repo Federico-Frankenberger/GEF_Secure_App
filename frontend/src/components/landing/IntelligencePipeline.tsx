@@ -1,4 +1,4 @@
-import { ShieldCheck, Github, ArrowRight } from 'lucide-react'
+import { ShieldCheck, GitBranch, ArrowRight } from 'lucide-react'
 import Reveal from './Reveal'
 
 const FLOW = [
@@ -34,7 +34,7 @@ export default function IntelligencePipeline() {
                   </div>
                 </div>
                 <div className="card flex items-center gap-3">
-                  <Github size={18} className="text-slate-300 flex-shrink-0" />
+                  <GitBranch size={18} className="text-slate-300 flex-shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-white">GitHub Security Advisories</p>
                     <p className="text-xs text-slate-500">Advisories de seguridad por paquete y ecosistema.</p>
