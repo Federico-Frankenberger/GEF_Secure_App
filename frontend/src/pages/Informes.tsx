@@ -1,199 +1,381 @@
-import { useEffect, useState, ReactNode } from 'react'
-import { FileText, Download, GitCompare, TrendingUp, Search, ShieldAlert } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import {
+  Download, Search, TrendingUp, TrendingDown, Minus, ShieldAlert, ArrowRight,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
-import { scanApi, reportApi } from '../services/api'
-import type { ScanReport, ScanTargetType } from '../types'
+import { vulnApi, reportApi } from '../services/api'
+import type {
+  VulnerabilitySummary, VulnerabilityAnalysis, RemediationAnalysis, CvePreview,
+} from '../types'
 import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import { downloadBlob } from '../utils/downloadFile'
-import { useAuth } from '../contexts/AuthContext'
+import { PRIORITY_BADGE, PRIORITY_LABEL } from '../constants/badges'
 
-// FE-13 (docs/20-08-26/AUDITORIA_END_TO_END.md): "Informes" incluye el resumen ejecutivo
-// y la exportación de cualquier escaneo del historial -- restringido acá al mismo criterio
-// que ya aplica el backend (C2) para no ofrecer un flujo que va a terminar en 404/vacío.
-const ALLOWED_ROLES = ['ADMIN', 'SECURITY_ANALYST']
+// Centro de Informes de Seguridad (docs/bitacora/23-08-26,
+// prompt_mejora_informes_gef_secure.md): distinto del Dashboard ("¿cómo estamos ahora?"),
+// esto responde "¿qué pasó en un período y cómo lo comunico?". 3 pestañas -- 2 retiradas
+// del diseño original (Informe de escaneo puntual / comparativo) porque ya viven, mejor
+// resueltas con vista previa real, en Escaneos → Historial. La vista "Vulnerabilidades"
+// (tendencia/SLA/fuentes) tampoco vive acá -- se probó embebida y quedaba duplicada con
+// la pestaña Análisis del módulo Vulnerabilidades (mismo gráfico, dos rutas); se dejó
+// solo en su lugar nativo, con export agregado ahí, y acá solo se linkea.
+type Tab = 'resumen' | 'remediacion' | 'cve'
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'resumen', label: 'Resumen Ejecutivo' },
+  { key: 'remediacion', label: 'Remediación' },
+  { key: 'cve', label: 'Ficha de CVE/GHSA' },
+]
 
-const TARGET_LABEL: Record<ScanTargetType, string> = {
-  ACTIVO: 'Componente', HOST: 'Activo', ENTORNO: 'Entorno', GLOBAL: 'Global',
+function ChartSkeleton({ h = 80 }: { h?: number }) {
+  return <div className="skeleton rounded-lg w-full" style={{ height: h }} />
 }
 
-const scanOptionLabel = (r: ScanReport) =>
-  `${r.publicCode} · ${new Date(r.executedAt).toLocaleString('es-AR')} · ${TARGET_LABEL[r.targetType] ?? r.targetType}${r.targetName !== 'TODOS' ? ` — ${r.targetName}` : ''}`
+function formatMttr(days?: number | null): string {
+  if (days === null || days === undefined) return '—'
+  if (days < 1) return `${Math.round(days * 24)} h`
+  return `${days.toFixed(1)} d`
+}
 
-function ReportCard({ icon: Icon, title, description, children }: {
-  icon: typeof FileText
-  title: string
-  description: string
-  children: ReactNode
-}) {
-  return (
-    <div className="card flex flex-col gap-3">
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-brand-600/15 text-brand-400 flex items-center justify-center flex-shrink-0">
-          <Icon size={16} />
-        </div>
-        <p className="text-sm font-semibold text-white">{title}</p>
-      </div>
-      <p className="text-xs text-slate-500 -mt-1">{description}</p>
-      {children}
-    </div>
-  )
+function exportPdf(promise: Promise<{ data: Blob }>, filename: string, setBusy: (v: boolean) => void) {
+  setBusy(true)
+  promise
+    .then(r => downloadBlob(r.data, filename))
+    .catch(() => toast.error('Error al generar el PDF'))
+    .finally(() => setBusy(false))
 }
 
 export default function Informes() {
-  const { user } = useAuth()
-  const allowed = user != null && ALLOWED_ROLES.includes(user.role)
-
-  const [scans, setScans] = useState<ScanReport[]>([])
-
-  useEffect(() => {
-    if (!allowed) return
-    scanApi.history({ page: 0, size: 100 })
-      .then(r => setScans(r.data.content))
-      .catch(() => toast.error('Error al cargar el historial de escaneos'))
-  }, [allowed])
-
-  if (!allowed) {
-    return (
-      <div className="animate-fade-in">
-        <PageHeader title="Informes" subtitle="Exportación de informes en PDF sobre escaneos y vulnerabilidades" />
-        <div className="card flex flex-col items-center gap-3 py-12 text-center">
-          <ShieldAlert size={28} className="text-slate-500" />
-          <p className="text-sm text-slate-400">Tu rol no tiene acceso a esta sección.</p>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Informe de escaneo puntual ────────────────────────────────────────────
-  const [scanId, setScanId] = useState<number | ''>('')
-  const [exportingScan, setExportingScan] = useState(false)
-
-  const exportScanReport = async () => {
-    if (scanId === '') return
-    setExportingScan(true)
-    try {
-      const { data } = await reportApi.scan(Number(scanId))
-      downloadBlob(data, `informe-escaneo-${scanId}.pdf`)
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al generar el informe')
-    } finally {
-      setExportingScan(false)
-    }
-  }
-
-  // ── Informe comparativo ───────────────────────────────────────────────────
-  const [compareAId, setCompareAId] = useState<number | ''>('')
-  const [compareBId, setCompareBId] = useState<number | ''>('')
-  const [exportingComparison, setExportingComparison] = useState(false)
-
-  const exportComparisonReport = async () => {
-    if (compareAId === '' || compareBId === '' || compareAId === compareBId) return
-    setExportingComparison(true)
-    try {
-      const { data } = await reportApi.comparison(Number(compareAId), Number(compareBId))
-      downloadBlob(data, `informe-comparativo-${compareAId}-${compareBId}.pdf`)
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al generar el informe')
-    } finally {
-      setExportingComparison(false)
-    }
-  }
-
-  // ── Resumen ejecutivo ─────────────────────────────────────────────────────
-  const [exportingExecutive, setExportingExecutive] = useState(false)
-
-  const exportExecutiveReport = async () => {
-    setExportingExecutive(true)
-    try {
-      const { data } = await reportApi.executive()
-      downloadBlob(data, 'resumen-ejecutivo.pdf')
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al generar el resumen ejecutivo')
-    } finally {
-      setExportingExecutive(false)
-    }
-  }
-
-  // ── Ficha de CVE/GHSA ─────────────────────────────────────────────────────
-  const [cveIdentifier, setCveIdentifier] = useState('')
-  const [exportingCve, setExportingCve] = useState(false)
-
-  const exportCveReport = async () => {
-    const identifier = cveIdentifier.trim()
-    if (!identifier) return
-    setExportingCve(true)
-    try {
-      const { data } = await reportApi.cve(identifier)
-      downloadBlob(data, `ficha-${identifier}.pdf`)
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al generar la ficha')
-    } finally {
-      setExportingCve(false)
-    }
-  }
+  const [tab, setTab] = useState<Tab>('resumen')
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="Informes"
-        subtitle="Exportá información de escaneos y vulnerabilidades en PDF"
+        subtitle="Centro de Informes de Seguridad — evolución en un período y documentos para compartir"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <ReportCard icon={FileText} title="Informe de escaneo puntual"
-          description="Resumen por severidad y detalle completo de los hallazgos de un escaneo del historial.">
-          <select className="input w-full" value={scanId} onChange={e => setScanId(e.target.value ? Number(e.target.value) : '')}>
-            <option value="">Elegir escaneo…</option>
-            {scans.map(s => <option key={s.id} value={s.id}>{scanOptionLabel(s)}</option>)}
-          </select>
-          <button onClick={exportScanReport} disabled={scanId === '' || exportingScan} className="btn-primary self-start">
-            <Download size={14} /> {exportingScan ? 'Generando…' : 'Exportar PDF'}
-          </button>
-        </ReportCard>
-
-        <ReportCard icon={GitCompare} title="Informe comparativo"
-          description="Qué es nuevo, qué se resolvió y qué persiste entre dos escaneos del historial.">
-          <select className="input w-full" value={compareAId} onChange={e => setCompareAId(e.target.value ? Number(e.target.value) : '')}>
-            <option value="">Escaneo A…</option>
-            {scans.map(s => <option key={s.id} value={s.id}>{scanOptionLabel(s)}</option>)}
-          </select>
-          <select className="input w-full" value={compareBId} onChange={e => setCompareBId(e.target.value ? Number(e.target.value) : '')}>
-            <option value="">Escaneo B…</option>
-            {scans.map(s => <option key={s.id} value={s.id}>{scanOptionLabel(s)}</option>)}
-          </select>
-          {compareAId !== '' && compareAId === compareBId && (
-            <p className="text-xs text-red-400">Elegí dos escaneos distintos.</p>
-          )}
+      <div className="flex gap-1 mb-5 bg-surface-800 border border-surface-600 rounded-xl p-1 w-fit flex-wrap">
+        {TABS.map(t => (
           <button
-            onClick={exportComparisonReport}
-            disabled={compareAId === '' || compareBId === '' || compareAId === compareBId || exportingComparison}
-            className="btn-primary self-start"
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all
+              ${tab === t.key ? 'bg-brand-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
           >
-            <Download size={14} /> {exportingComparison ? 'Generando…' : 'Exportar PDF'}
+            {t.label}
           </button>
-        </ReportCard>
-
-        <ReportCard icon={TrendingUp} title="Resumen ejecutivo"
-          description="Postura de seguridad actual: indicadores clave y las vulnerabilidades críticas abiertas más urgentes.">
-          <button onClick={exportExecutiveReport} disabled={exportingExecutive} className="btn-primary self-start">
-            <Download size={14} /> {exportingExecutive ? 'Generando…' : 'Exportar PDF'}
-          </button>
-        </ReportCard>
-
-        <ReportCard icon={Search} title="Ficha de CVE / GHSA"
-          description="Descripción real de un identificador puntual y todos los activos de la organización afectados por él.">
-          <input
-            type="text"
-            className="input w-full"
-            placeholder="ej: CVE-2024-12345 o GHSA-xxxx-xxxx-xxxx"
-            value={cveIdentifier}
-            onChange={e => setCveIdentifier(e.target.value)}
-          />
-          <button onClick={exportCveReport} disabled={!cveIdentifier.trim() || exportingCve} className="btn-primary self-start">
-            <Download size={14} /> {exportingCve ? 'Generando…' : 'Exportar PDF'}
-          </button>
-        </ReportCard>
+        ))}
       </div>
+
+      {tab === 'resumen' && <ResumenEjecutivoTab />}
+      {tab === 'remediacion' && <RemediacionTab />}
+      {tab === 'cve' && <FichaCveTab />}
+
+      {/* Retiradas del rediseño (docs/bitacora/23-08-26): informe de escaneo puntual y
+          comparativo ya viven, con vista previa real antes de exportar, en el historial
+          de Escaneos; la evolución de vulnerabilidades por período (tendencia/SLA/
+          fuentes) ya vive en la pestaña Análisis de Vulnerabilidades, con su propio
+          export -- acá solo se avisa dónde encontrar cada uno, no se duplican. */}
+      <div className="text-xs text-slate-500 mt-6 space-y-1.5">
+        <p className="flex items-center gap-1.5">
+          <ArrowRight size={12} className="flex-shrink-0" />
+          ¿Buscás el informe de un escaneo puntual o una comparación entre dos? Anda a{' '}
+          <Link to="/scans" className="text-brand-400 hover:text-brand-300 font-medium">Escaneos → Historial</Link>,
+          {' '}abrí el resultado que te interesa y exportá desde ahí — vas a ver los datos antes de descargar.
+        </p>
+        <p className="flex items-center gap-1.5">
+          <ArrowRight size={12} className="flex-shrink-0" />
+          ¿Buscás la evolución de vulnerabilidades por período (tendencia, SLA, fuentes)? Anda a{' '}
+          <Link to="/kanban?tab=analisis" className="text-brand-400 hover:text-brand-300 font-medium">Vulnerabilidades → Análisis</Link>,
+          {' '}el botón "Exportar PDF" ya está ahí mismo.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Resumen Ejecutivo ────────────────────────────────────────────────────────────────
+
+function trendDirection(trend: { detectadas: number; resueltas: number }[]): 'up' | 'down' | 'flat' {
+  if (trend.length < 4) return 'flat'
+  const mid = Math.floor(trend.length / 2)
+  const net = (rows: typeof trend) => rows.reduce((s, d) => s + d.detectadas - d.resueltas, 0)
+  const delta = net(trend.slice(mid)) - net(trend.slice(0, mid))
+  if (delta > 0) return 'up'
+  if (delta < 0) return 'down'
+  return 'flat'
+}
+
+function ResumenEjecutivoTab() {
+  const navigate = useNavigate()
+  const [summary, setSummary] = useState<VulnerabilitySummary | null>(null)
+  const [analysis, setAnalysis] = useState<VulnerabilityAnalysis | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([vulnApi.summary(), vulnApi.analysis(30)])
+      .then(([sum, an]) => { setSummary(sum.data); setAnalysis(an.data) })
+      .catch(() => toast.error('Error al cargar el resumen ejecutivo'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const slaPercent = summary && summary.openCount > 0
+    ? Math.round((Math.max(0, summary.openCount - summary.slaOverdueCount - summary.slaUpcomingCount) / summary.openCount) * 100)
+    : null
+
+  const direction = analysis ? trendDirection(analysis.trend) : 'flat'
+  const trendMeta = {
+    up:   { icon: TrendingUp, color: 'text-severity-critical', label: 'Riesgo en aumento en los últimos 30 días' },
+    down: { icon: TrendingDown, color: 'text-severity-low', label: 'Riesgo en baja en los últimos 30 días' },
+    flat: { icon: Minus, color: 'text-slate-400', label: 'Riesgo estable en los últimos 30 días' },
+  }[direction]
+
+  return (
+    <div className="space-y-4">
+      <div className="card flex items-center gap-3 !py-3">
+        <trendMeta.icon size={20} className={`${trendMeta.color} flex-shrink-0`} />
+        <p className={`text-sm font-medium ${trendMeta.color}`}>{trendMeta.label}</p>
+      </div>
+
+      {/* Corrección de diseño (docs/bitacora/23-08-26): esta fila mostraba antes Total
+          Activos/Vulnerabilidades/Abiertas/Críticas/Resueltas/MTTR -- exactamente los
+          mismos KPIs, con el mismo cálculo, que ya están en el Dashboard a un click de
+          acá. Un "resumen ejecutivo" que repite el Dashboard no aporta nada nuevo. Estos
+          6 campos sí son exclusivos de esta vista (VulnerabilitySummaryDTO ya los traía,
+          nunca se habían mostrado): exposición real, explotación conocida y el delta del
+          período -- no "cuánto hay en total", sino "qué cambió y qué tan grave es". */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {loading ? [...Array(6)].map((_, i) => <StatCard key={i} title="" loading />) : <>
+          <StatCard title="Activos con exposición" value={summary?.affectedAssetsCount} color="amber" onClick={() => navigate('/assets')} />
+          <StatCard title="Explotación conocida" value={summary?.exploitedCount} color="critical" emphasize />
+          <StatCard title="Nuevas (7 días)" value={summary?.newLast7Days} color="red" onClick={() => navigate('/kanban?tab=listado')} />
+          <StatCard title="Resueltas (7 días)" value={summary?.resolvedLast7Days} color="emerald" onClick={() => navigate('/kanban?tab=listado&triageStatus=RESUELTA')} />
+          <StatCard title="Cumplimiento SLA" value={slaPercent !== null ? `${slaPercent}%` : '—'} color={slaPercent !== null && slaPercent < 70 ? 'critical' : 'emerald'} />
+          <StatCard title="En catálogo CISA KEV" value={summary?.cisaKevCount} color="critical" />
+        </>}
+      </div>
+
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Activos con mayor riesgo</p>
+          <button
+            onClick={() => exportPdf(reportApi.executive(), 'resumen-ejecutivo.pdf', setExporting)}
+            disabled={exporting}
+            className="btn-primary !py-1.5"
+          >
+            <Download size={13} /> {exporting ? 'Generando…' : 'Exportar PDF'}
+          </button>
+        </div>
+        {loading ? <ChartSkeleton h={140} /> : !summary?.topRiskAssets.length ? (
+          <p className="text-sm text-slate-500 italic py-4">Sin vulnerabilidades abiertas para rankear activos.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {summary.topRiskAssets.map(a => (
+              <div key={a.assetId} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-surface-800">
+                <span className="text-slate-300">{a.assetName}</span>
+                <span className="text-xs text-slate-500 font-mono">{a.criticals} críticas · {a.highs} altas · {a.total} total</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Remediación ──────────────────────────────────────────────────────────────────────
+
+const PERIODS = [7, 30, 90] as const
+
+function RemediacionTab() {
+  const [days, setDays] = useState<7 | 30 | 90>(30)
+  const [data, setData] = useState<RemediationAnalysis | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    vulnApi.remediationAnalysis(days)
+      .then(r => setData(r.data))
+      .catch(() => toast.error('Error al cargar el análisis de remediación'))
+      .finally(() => setLoading(false))
+  }, [days])
+
+  return (
+    <div className="space-y-4">
+      <div className="card">
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">MTTR y cumplimiento de SLA</p>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1 bg-surface-900 border border-surface-600 rounded-lg p-1 w-fit">
+              {PERIODS.map(p => (
+                <button
+                  key={p}
+                  onClick={() => setDays(p)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all
+                    ${days === p ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  {p}d
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => exportPdf(reportApi.remediation(days), `informe-remediacion-${days}d.pdf`, setExporting)}
+              disabled={exporting}
+              className="btn-primary !py-1.5"
+            >
+              <Download size={13} /> {exporting ? 'Generando…' : 'Exportar PDF'}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          {loading ? [...Array(3)].map((_, i) => <StatCard key={i} title="" loading />) : <>
+            <StatCard title="MTTR declarado" value={formatMttr(data?.mttrDeclaredDays)} color="brand" />
+            <StatCard title="MTTR verificado" value={formatMttr(data?.mttrVerifiedDays)} color="brand" />
+            <StatCard title="Casos reabiertos" value={data?.reopenedCasesCount} color="amber" />
+          </>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="card">
+          <p className="text-xs font-semibold text-slate-400 mb-4 uppercase tracking-wider">
+            Cierres por tipo de resolución (VEX, {days}d)
+          </p>
+          {loading ? <ChartSkeleton h={120} /> : !data?.outcomeBreakdown.length ? (
+            <p className="text-sm text-slate-500 italic">Sin cierres en el período elegido.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {data.outcomeBreakdown.map(row => (
+                <div key={row.outcome} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-surface-800">
+                  <span className="text-slate-300">{row.outcome === 'SIN_CLASIFICAR' ? 'Sin clasificar' : row.outcome}</span>
+                  <span className="text-xs text-slate-500 font-mono">{row.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <p className="text-xs font-semibold text-slate-400 mb-4 uppercase tracking-wider">
+            Cierres por nivel de evidencia ({days}d)
+          </p>
+          {loading ? <ChartSkeleton h={120} /> : !data?.evidenceLevelBreakdown.length ? (
+            <p className="text-sm text-slate-500 italic">Sin cierres en el período elegido.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {data.evidenceLevelBreakdown.map(row => (
+                <div key={row.evidenceLevel} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-surface-800">
+                  <span className="text-slate-300 font-mono">{row.evidenceLevel === 'SIN_EVIDENCIA' ? 'Sin evidencia' : row.evidenceLevel}</span>
+                  <span className="text-xs text-slate-500 font-mono">{row.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {!loading && data && data.mttrByCriticality.length > 0 && (
+        <div className="card">
+          <p className="text-xs font-semibold text-slate-400 mb-4 uppercase tracking-wider">MTTR declarado por criticidad</p>
+          <div className="space-y-1.5">
+            {data.mttrByCriticality.map(row => (
+              <div key={row.priority} className="flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-surface-800">
+                <span className={`badge ${PRIORITY_BADGE[row.priority] ?? ''}`}>{PRIORITY_LABEL[row.priority] ?? row.priority}</span>
+                <span className="text-xs text-slate-500 font-mono">{formatMttr(row.avgDays)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Ficha de CVE/GHSA ────────────────────────────────────────────────────────────────
+
+function FichaCveTab() {
+  const [identifier, setIdentifier] = useState('')
+  const [preview, setPreview] = useState<CvePreview | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  const checkPreview = useCallback((value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) { setPreview(null); return }
+    setChecking(true)
+    reportApi.cvePreview(trimmed)
+      .then(r => setPreview(r.data))
+      .catch(() => toast.error('Error al buscar el identificador'))
+      .finally(() => setChecking(false))
+  }, [])
+
+  // Búsqueda al tipear, con un debounce corto -- no hace falta un botón "Buscar" aparte
+  // para algo tan liviano como este preview.
+  useEffect(() => {
+    const id = setTimeout(() => checkPreview(identifier), 350)
+    return () => clearTimeout(id)
+  }, [identifier, checkPreview])
+
+  return (
+    <div className="card max-w-xl space-y-4">
+      <div>
+        <label className="block text-xs text-slate-400 mb-1">CVE o GHSA</label>
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            className="input !pl-9"
+            value={identifier}
+            onChange={e => setIdentifier(e.target.value)}
+            placeholder="ej: CVE-2024-12345 o GHSA-xxxx-xxxx-xxxx"
+          />
+        </div>
+      </div>
+
+      {checking && <p className="text-xs text-slate-500">Buscando…</p>}
+
+      {!checking && identifier.trim() && preview && !preview.found && (
+        <div className="flex items-center gap-2 text-sm text-slate-400 bg-surface-800 rounded-lg px-3 py-2.5">
+          <ShieldAlert size={14} className="text-slate-500 flex-shrink-0" />
+          No se encontraron activos afectados por "{identifier.trim()}".
+        </div>
+      )}
+
+      {!checking && preview?.found && (
+        <div className="space-y-3">
+          <div className="bg-surface-800 rounded-lg p-3 space-y-1.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-400">Activos afectados</span>
+              <span className="text-white font-semibold">{preview.affectedAssetsCount}</span>
+            </div>
+            {preview.priority && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-400">Prioridad</span>
+                <span className={`badge ${PRIORITY_BADGE[preview.priority] ?? ''}`}>{PRIORITY_LABEL[preview.priority] ?? preview.priority}</span>
+              </div>
+            )}
+            {preview.cvss && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-400">CVSS</span>
+                <span className="text-white font-mono">{preview.cvss}</span>
+              </div>
+            )}
+            {preview.summary && <p className="text-xs text-slate-500 pt-1 border-t border-surface-600">{preview.summary}</p>}
+          </div>
+          <button
+            onClick={() => exportPdf(reportApi.cve(identifier.trim()), `ficha-${identifier.trim()}.pdf`, setExporting)}
+            disabled={exporting}
+            className="btn-primary w-full justify-center"
+          >
+            <Download size={14} /> {exporting ? 'Generando…' : 'Exportar PDF'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

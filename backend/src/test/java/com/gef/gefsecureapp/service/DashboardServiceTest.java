@@ -5,6 +5,7 @@ import com.gef.gefsecureapp.repository.AssetRepository;
 import com.gef.gefsecureapp.repository.AssetVulnerabilityRepository;
 import com.gef.gefsecureapp.repository.ScanReportRepository;
 import com.gef.gefsecureapp.repository.SoftwareComponentRepository;
+import com.gef.gefsecureapp.repository.StateTransitionRepository;
 import com.gef.gefsecureapp.security.TestAuth;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +32,7 @@ class DashboardServiceTest {
 
     @Mock private SoftwareComponentRepository softwareComponentRepository;
     @Mock private AssetVulnerabilityRepository vulnRepository;
+    @Mock private StateTransitionRepository stateTransitionRepository;
     @Mock private ScanReportRepository scanReportRepository;
     @Mock private UserAssetAssignmentService userAssetAssignmentService;
     @Mock private AssetRepository assetRepository;
@@ -59,7 +61,7 @@ class DashboardServiceTest {
         when(vulnRepository.countGroupedByTriageStatus()).thenReturn(List.of());
         when(vulnRepository.countDailyDetections(any())).thenReturn(List.of());
         when(vulnRepository.countDailyResolutions(any())).thenReturn(List.of());
-        when(vulnRepository.countByReopenCountGreaterThan(0)).thenReturn(3L);
+        when(stateTransitionRepository.countReopened()).thenReturn(3L);
         when(vulnRepository.countAgingBuckets()).thenReturn(List.of());
         when(vulnRepository.findAverageMttrDeclaredDaysByPriority()).thenReturn(List.of());
         when(vulnRepository.countOpenGroupedByAssignedUser()).thenReturn(List.of());
@@ -76,7 +78,7 @@ class DashboardServiceTest {
         // ninguna de las variantes scopeadas debe llamarse para ADMIN
         verify(assetRepository, never()).countByIdInAndDeletedAtIsNull(any());
         verify(vulnRepository, never()).countBySoftwareComponent_Asset_IdIn(any());
-        verify(vulnRepository, never()).countByReopenCountGreaterThanAndSoftwareComponent_Asset_IdIn(any(), any());
+        verify(stateTransitionRepository, never()).countReopened(any());
     }
 
     @Test
@@ -95,7 +97,7 @@ class DashboardServiceTest {
         when(vulnRepository.countGroupedByTriageStatus()).thenReturn(List.of());
         when(vulnRepository.countDailyDetections(any())).thenReturn(List.of());
         when(vulnRepository.countDailyResolutions(any())).thenReturn(List.of());
-        when(vulnRepository.countByReopenCountGreaterThan(0)).thenReturn(0L);
+        when(stateTransitionRepository.countReopened()).thenReturn(0L);
         when(vulnRepository.countAgingBuckets()).thenReturn(List.of());
         when(vulnRepository.findAverageMttrDeclaredDaysByPriority()).thenReturn(List.of());
         when(vulnRepository.countOpenGroupedByAssignedUser()).thenReturn(List.of());
@@ -122,7 +124,7 @@ class DashboardServiceTest {
         when(vulnRepository.countGroupedByTriageStatus(scope)).thenReturn(List.of());
         when(vulnRepository.countDailyDetections(any(), eq(scope))).thenReturn(List.of());
         when(vulnRepository.countDailyResolutions(any(), eq(scope))).thenReturn(List.of());
-        when(vulnRepository.countByReopenCountGreaterThanAndSoftwareComponent_Asset_IdIn(0, scope)).thenReturn(1L);
+        when(stateTransitionRepository.countReopened(scope)).thenReturn(1L);
         when(vulnRepository.countAgingBuckets(scope)).thenReturn(List.of());
         when(vulnRepository.findAverageMttrDeclaredDaysByPriority(scope)).thenReturn(List.of());
         when(vulnRepository.countOpenGroupedByAssignedUser(scope)).thenReturn(List.of());
@@ -141,7 +143,7 @@ class DashboardServiceTest {
         verify(vulnRepository, never()).count();
         verify(vulnRepository, never()).findAverageMttrDeclaredDays();
         verify(scanReportRepository, never()).findFirstByExecutedAtNotNullOrderByExecutedAtDesc();
-        verify(vulnRepository, never()).countByReopenCountGreaterThan(any());
+        verify(stateTransitionRepository, never()).countReopened();
     }
 
     @Test
@@ -160,7 +162,7 @@ class DashboardServiceTest {
         when(vulnRepository.countGroupedByTriageStatus()).thenReturn(List.of());
         when(vulnRepository.countDailyDetections(any())).thenReturn(List.of());
         when(vulnRepository.countDailyResolutions(any())).thenReturn(List.of());
-        when(vulnRepository.countByReopenCountGreaterThan(0)).thenReturn(0L);
+        when(stateTransitionRepository.countReopened()).thenReturn(0L);
         when(vulnRepository.countAgingBuckets()).thenReturn(List.of(
                 new Object[]{"0-30", 5L}, new Object[]{"90+", 2L}));
         when(vulnRepository.findAverageMttrDeclaredDaysByPriority()).thenReturn(List.of(
@@ -191,7 +193,7 @@ class DashboardServiceTest {
         when(vulnRepository.countGroupedByTriageStatus()).thenReturn(List.of());
         when(vulnRepository.countDailyDetections(any())).thenReturn(List.of());
         when(vulnRepository.countDailyResolutions(any())).thenReturn(List.of());
-        when(vulnRepository.countByReopenCountGreaterThan(0)).thenReturn(0L);
+        when(stateTransitionRepository.countReopened()).thenReturn(0L);
         when(vulnRepository.countAgingBuckets()).thenReturn(List.of());
         when(vulnRepository.findAverageMttrDeclaredDaysByPriority()).thenReturn(List.of());
         when(vulnRepository.countOpenGroupedByAssignedUser()).thenReturn(List.of(
@@ -235,7 +237,7 @@ class DashboardServiceTest {
         when(vulnRepository.countGroupedByTriageStatus()).thenReturn(List.of());
         when(vulnRepository.countDailyDetections(any())).thenReturn(List.of());
         when(vulnRepository.countDailyResolutions(any())).thenReturn(List.of());
-        when(vulnRepository.countByReopenCountGreaterThan(0)).thenReturn(0L);
+        when(stateTransitionRepository.countReopened()).thenReturn(0L);
         when(vulnRepository.countAgingBuckets()).thenReturn(List.of());
         when(vulnRepository.findAverageMttrDeclaredDaysByPriority()).thenReturn(List.of());
         when(vulnRepository.countOpenGroupedByAssignedUser()).thenReturn(List.of());
@@ -264,7 +266,7 @@ class DashboardServiceTest {
         when(vulnRepository.countGroupedByTriageStatus(scope)).thenReturn(List.of());
         when(vulnRepository.countDailyDetections(any(), eq(scope))).thenReturn(List.of());
         when(vulnRepository.countDailyResolutions(any(), eq(scope))).thenReturn(List.of());
-        when(vulnRepository.countByReopenCountGreaterThanAndSoftwareComponent_Asset_IdIn(0, scope)).thenReturn(1L);
+        when(stateTransitionRepository.countReopened(scope)).thenReturn(1L);
         when(vulnRepository.countAgingBuckets(scope)).thenReturn(List.of());
         when(vulnRepository.findAverageMttrDeclaredDaysByPriority(scope)).thenReturn(List.of());
         when(vulnRepository.countOpenGroupedByAssignedUser(scope)).thenReturn(List.of());

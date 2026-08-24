@@ -185,6 +185,31 @@ export interface VulnerabilityAnalysis {
   ghsaOnlyCount: number
 }
 
+// Pestaña "Remediación" del Centro de Informes (docs/bitacora/23-08-26): MTTR/SLA son
+// los mismos snapshots del Dashboard, reusados tal cual; los desgloses VEX/evidencia son
+// nuevos, acotados al período elegido.
+export interface RemediationAnalysis {
+  days: number
+  mttrDeclaredDays: number | null
+  mttrVerifiedDays: number | null
+  mttrByCriticality: { priority: string; avgDays: number }[]
+  slaOverdueCount: number
+  slaUpcomingCount: number
+  slaOnTrackCount: number
+  outcomeBreakdown: { outcome: string; count: number }[]
+  evidenceLevelBreakdown: { evidenceLevel: string; count: number }[]
+  reopenedCasesCount: number
+}
+
+// Preview liviano de la pestaña "Ficha de CVE/GHSA" -- antes de exportar el PDF completo.
+export interface CvePreview {
+  found: boolean
+  affectedAssetsCount: number
+  priority?: string | null
+  cvss?: string | null
+  summary?: string | null
+}
+
 export interface VulnerabilitySearchParams {
   priority?: string
   triageStatus?: string
@@ -265,6 +290,7 @@ export interface User {
   email: string | null
   role: string
   createdAt: string
+  active: boolean
 }
 
 export interface UserRequest {
@@ -286,6 +312,7 @@ export interface UserAssetAssignment {
   username: string
   userFullName: string | null
   assetId: number
+  assetName: string
   assignedAt: string
 }
 

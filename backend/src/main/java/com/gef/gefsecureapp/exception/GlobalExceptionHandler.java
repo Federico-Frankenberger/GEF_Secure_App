@@ -1,5 +1,6 @@
 package com.gef.gefsecureapp.exception;
 
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
@@ -8,6 +9,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
@@ -84,11 +86,60 @@ public class GlobalExceptionHandler {
                 .body(new ErrorBody(409, "El registro ya existe o viola una regla de integridad"));
     }
 
+    // N8N-03 (plan de confiabilidad 2026-08-24): el retry automatico de
+    // WebhookController solo cubre el camino de escaneos (via ConcurrencyFailureException).
+    // Un humano editando el mismo caso del Kanban en dos pestañas a la vez no pasa por ese
+    // retry -- sin este handler, ObjectOptimisticLockingFailureException caia en el
+    // catch-all generico (500 "Error interno del servidor"), confuso para un conflicto que
+    // en realidad es benigno y recuperable con solo recargar y reintentar.
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorBody> handleOptimisticLock(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        log.warn("Conflicto de version optimista: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorBody(409, "Este registro fue modificado por otro proceso mientras lo editabas. Recargá y volvé a intentar."));
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorBody> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
         log.warn("Archivo subido supera el tamaño máximo permitido: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(new ErrorBody(413, "El archivo supera el tamaño máximo permitido"));
+    }
+
+    // RPT-DAYS-VALIDATION (docs/bitacora/24-08-26/AUDITORIA_SECCIONES_NUEVAS.md): valida
+    // constraints de Bean Validation en @RequestParam/@PathVariable (ej. @Min en `days`)
+    // -- MethodArgumentNotValidException de mas abajo solo cubre @Valid @RequestBody, no
+    // parametros sueltos anotados directo en la firma del metodo.
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorBody> handleConstraintViolation(ConstraintViolationException ex) {
+        log.warn("Parámetro inválido: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(new ErrorBody(400, "Parámetro inválido: " + ex.getMessage()));
+    }
+
+    // RPT-DAYS-VALIDATION: un @RequestParam de tipo primitivo (ej. `int days`) con un
+    // valor no convertible (`days=abc`) fallaba en la resolucion de argumentos de Spring
+    // MVC, antes de llegar siquiera al controller -- sin este handler, caia en el
+    // catch-all generico (500), en vez de un 400 que le diga al cliente que el parametro
+    // esta mal tipeado.
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorBody> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        log.warn("Parámetro con tipo inválido: {}", ex.getMessage());
+        String requiredType = describeType(ex.getRequiredType());
+        return ResponseEntity.badRequest().body(new ErrorBody(400,
+                "El parámetro '" + ex.getName() + "' debe ser un valor " + requiredType + "."));
+    }
+
+    // Nombres de tipo en espanol para los mensajes al cliente -- ex.getRequiredType() da
+    // el nombre crudo de la clase Java (ej. "int"), que no es algo que un usuario final
+    // deba ver tal cual.
+    private String describeType(Class<?> type) {
+        if (type == null) return "válido";
+        return switch (type.getSimpleName()) {
+            case "int", "Integer", "long", "Long", "short", "Short" -> "numérico entero";
+            case "double", "Double", "float", "Float", "BigDecimal" -> "numérico";
+            case "boolean", "Boolean" -> "verdadero/falso";
+            default -> "válido de tipo " + type.getSimpleName();
+        };
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

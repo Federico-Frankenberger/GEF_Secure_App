@@ -1,0 +1,12 @@
+{
+  "name": "gef-secure-n8n-logic-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests de la logica JS critica embebida en los Code nodes del workflow de n8n (no hay framework de test nativo para n8n Code nodes).",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.11"
+  }
+}

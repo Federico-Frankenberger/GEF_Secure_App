@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, ChangeEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd'
 import { RefreshCw, Filter, CalendarX, ExternalLink, Skull, ShieldCheck, Download } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -22,6 +23,7 @@ const COLUMNS: { id: VulnStatus; label: string; color: string }[] = [
 
 type Board = Record<VulnStatus, VulnerabilityAudit[]>
 type Tab = 'resumen' | 'analisis' | 'listado' | 'kanban'
+const TAB_KEYS: Tab[] = ['resumen', 'analisis', 'listado', 'kanban']
 
 /** Rediseño de Vulnerabilidades (docs/bitacora/23-08-26): antes esta sección era
  *  solamente el Kanban. Ahora es un módulo con 4 vistas -- Resumen (riesgo), Análisis
@@ -35,7 +37,15 @@ export default function Vulnerabilidades() {
   const canListUsers = user?.role === 'ADMIN' || user?.role === 'SECURITY_ANALYST'
   const canDelete = user?.role === 'ADMIN' || user?.role === 'SECURITY_ANALYST'
 
-  const [tab, setTab] = useState<Tab>('resumen')
+  // Deep-link desde el Dashboard (docs/bitacora/23-08-26): /kanban?tab=listado&priority=CRITICAL
+  // -- solo se lee al montar, no se sincroniza en el otro sentido (cambiar de tab a mano
+  // no reescribe la URL, para no complicar el historial de navegación).
+  const [searchParams] = useSearchParams()
+  const initialTab = (() => {
+    const t = searchParams.get('tab')
+    return TAB_KEYS.includes(t as Tab) ? (t as Tab) : 'resumen'
+  })()
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [users, setUsers] = useState<User[]>([])
   useEffect(() => {
     if (canListUsers) userApi.getAll().then(r => setUsers(r.data)).catch(() => {})
@@ -164,7 +174,14 @@ export default function Vulnerabilidades() {
 
       {tab === 'analisis' && <VulnerabilidadesAnalisis refreshTick={refreshTick} />}
 
-      {tab === 'listado' && <VulnerabilidadesListado onOpenDetail={openEdit} refreshTick={refreshTick} />}
+      {tab === 'listado' && (
+        <VulnerabilidadesListado
+          onOpenDetail={openEdit}
+          refreshTick={refreshTick}
+          initialPriority={searchParams.get('priority') ?? undefined}
+          initialTriageStatus={searchParams.get('triageStatus') ?? undefined}
+        />
+      )}
 
       {tab === 'kanban' && (
         <KanbanBoard isAuditor={isAuditor} onEdit={openEdit} refreshTick={refreshTick} />

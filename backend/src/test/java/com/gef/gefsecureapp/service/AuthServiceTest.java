@@ -33,7 +33,7 @@ class AuthServiceTest {
     void login_should_returnToken_when_credentialsAreValid() {
         User user = User.builder()
                 .id(1L).username("fede.frankenberger").fullName("Federico Frankenberger")
-                .role("ADMIN").passwordHash("hashed").build();
+                .role("ADMIN").passwordHash("hashed").active(true).build();
         AuthDTO.LoginRequest request = AuthDTO.LoginRequest.builder()
                 .username("fede.frankenberger").password("GefSecure2026!").build();
 
@@ -91,6 +91,41 @@ class AuthServiceTest {
         String wrongPasswordMessage = catchMessage(() -> authService.login(wrongPasswordRequest));
 
         assertThat(unknownUserMessage).isEqualTo(wrongPasswordMessage);
+    }
+
+    // ── Centro de Administración (docs/bitacora/23-08-26): usuario desactivado ────────
+
+    @Test
+    @DisplayName("login() con usuario desactivado rechaza con InvalidCredentialsException")
+    void login_should_throwInvalidCredentials_when_userInactive() {
+        User user = User.builder()
+                .username("fede.frankenberger").passwordHash("hashed").role("ADMIN").active(false).build();
+        AuthDTO.LoginRequest request = AuthDTO.LoginRequest.builder()
+                .username("fede.frankenberger").password("GefSecure2026!").build();
+
+        when(userRepository.findByUsername("fede.frankenberger")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("GefSecure2026!", "hashed")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    @DisplayName("el mensaje de error de usuario desactivado es identico al de credenciales invalidas (evita enumeracion)")
+    void login_should_giveSameMessage_forInactiveUser_asInvalidCredentials() {
+        User activeUser = User.builder().username("x").passwordHash("hashed").role("ADMIN").active(true).build();
+        AuthDTO.LoginRequest wrongPasswordRequest = AuthDTO.LoginRequest.builder().username("x").password("mal").build();
+        when(userRepository.findByUsername("x")).thenReturn(Optional.of(activeUser));
+        when(passwordEncoder.matches("mal", "hashed")).thenReturn(false);
+        String wrongPasswordMessage = catchMessage(() -> authService.login(wrongPasswordRequest));
+
+        User inactiveUser = User.builder().username("y").passwordHash("hashed").role("ADMIN").active(false).build();
+        AuthDTO.LoginRequest inactiveRequest = AuthDTO.LoginRequest.builder().username("y").password("GefSecure2026!").build();
+        when(userRepository.findByUsername("y")).thenReturn(Optional.of(inactiveUser));
+        when(passwordEncoder.matches("GefSecure2026!", "hashed")).thenReturn(true);
+        String inactiveMessage = catchMessage(() -> authService.login(inactiveRequest));
+
+        assertThat(inactiveMessage).isEqualTo(wrongPasswordMessage);
     }
 
     private String catchMessage(Runnable action) {

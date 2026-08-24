@@ -143,4 +143,16 @@ public interface ScanReportRepository extends JpaRepository<ScanReport, Long> {
             LIMIT 1
             """, nativeQuery = true)
     Optional<ScanReport> findLatestAutomatic();
+
+    // Fix 0 (docs/bitacora/24-08-26/plan_fix_bucle_reapertura_vulnerabilidades.md): a
+    // diferencia de complete() (que recibe un scanId real y puede chequear el status de
+    // SU PROPIO ScanReport), completeAutomatic() no recibe ningun id -- crea un ScanReport
+    // nuevo en cada llamada. Sin este chequeo, un reintento de red de n8n (mismo escenario
+    // que motivo la guarda de complete(), M-NUEVO-2) dispara un segundo ScanReport "vacio"
+    // (sin scope, sin hallazgos propios) que applyLifecycle() interpreta como un escaneo
+    // global que no vio nada, cerrando por ausencia TODO el inventario OPEN de la
+    // organizacion. El escaneo automatico real corre 1 vez por dia (Scan_Scheduler, 09:00),
+    // asi que una segunda completacion dentro de la misma hora es, con altisima certeza, un
+    // reintento del mismo callback -- no una corrida legitima distinta.
+    boolean existsByAutomaticScanTrueAndExecutedAtAfter(LocalDateTime cutoff);
 }

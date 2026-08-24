@@ -1,0 +1,165 @@
+# ── Compose de PRODUCCIÓN — GEF Secure ─────────────────────────────────────────
+#
+# Cierra los pendientes CFG-02/03 y DOCKER-01 de las auditorías end-to-end
+# (docs/bitacora/22-08-26 y 24-08-26, y ya anticipado en
+# docs/bitacora/20-08-26/CHECKLIST_DESPLIEGUE.md): el `docker-compose.yml` de la
+# raíz es el entorno de DESARROLLO/DEMO local -- no tiene `SPRING_PROFILES_ACTIVE`
+# a propósito (con los secretos de ejemplo del `.env` de dev, activar el perfil
+# `prod` ahí haría fallar el arranque por diseño, ver `SecretsValidator.java`).
+#
+# Este archivo es un STANDALONE completo para un despliegue real (no una
+# extensión/override del de dev, para que quede explícito y legible qué corre
+# en producción sin depender de reglas de merge de Compose). Se usa así:
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# Requiere un `.env.prod` propio (NUNCA el `.env` de desarrollo) con, como
+# mínimo, TODAS las variables ya usadas en `docker-compose.yml` más:
+#   - JWT_SECRET           → generar con: openssl rand -base64 32
+#   - N8N_INTERNAL_TOKEN   → generar con: openssl rand -base64 32 (mismo valor
+#                            que usa el backend para autenticar los webhooks de n8n)
+#   - Contraseñas reales de Postgres/pgAdmin/N8N_OWNER_PASSWORD (nunca las de
+#     ejemplo del `.env.example` del repo)
+#
+# Diferencias respecto del compose de desarrollo:
+#   1. `SPRING_PROFILES_ACTIVE=prod` en el backend → activa el fail-fast de
+#      secretos (SecretsValidator.java) y deshabilita Swagger/OpenAPI
+#      (application-prod.properties, ya existente).
+#   2. `pgadmin`/`n8n` sin `ports:` publicados al host -- ya se comunican entre
+#      sí y con el backend por la red interna `gef_net`; acceso administrativo
+#      solo por túnel SSH/VPN (`ssh -L 8080:localhost:8080 ...` /
+#      `ssh -L 5678:localhost:5678 ...` desde el servidor real).
+#   3. Frontend sin `VITE_ENABLE_DEMO_LOGIN` (los accesos rápidos de Login.tsx
+#      son solo para demo/desarrollo, ver comentario P-10 en el compose de dev).
+
+networks:
+  gef_net:
+    driver: bridge
+
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: vuln_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d
+    networks:
+      - gef_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  n8n:
+    build:
+      context: ./n8n
+      args:
+        N8N_VERSION: ${N8N_VERSION}
+    container_name: vuln_n8n
+    restart: unless-stopped
+    # Sin ports: -- DOCKER-01. Acceso al editor solo por túnel SSH/VPN.
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/setup/workflows:ro
+      - ./n8n-provisioning:/setup/credentials:ro
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - TZ=${GENERIC_TIMEZONE}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
+      - N8N_PORT=5678
+      - WEBHOOK_URL=${N8N_WEBHOOK_PUBLIC_URL}
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - N8N_OWNER_EMAIL=${N8N_OWNER_EMAIL}
+      - N8N_OWNER_FIRST_NAME=${N8N_OWNER_FIRST_NAME}
+      - N8N_OWNER_LAST_NAME=${N8N_OWNER_LAST_NAME}
+      - N8N_OWNER_PASSWORD=${N8N_OWNER_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - N8N_INTERNAL_TOKEN=${N8N_INTERNAL_TOKEN}
+    networks:
+      - gef_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:5678/rest/settings || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: vuln_pgadmin
+    restart: unless-stopped
+    # Sin ports: -- DOCKER-01. Acceso solo por túnel SSH/VPN.
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    networks:
+      - gef_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build: ./backend
+    container_name: gef_backend
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/auditoria-automatizada
+      N8N_INJECT_WEBHOOK_URL: http://n8n:5678/webhook/inject-test-asset
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      JWT_SECRET: ${JWT_SECRET}
+      N8N_INTERNAL_TOKEN: ${N8N_INTERNAL_TOKEN}
+    networks:
+      - gef_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      n8n:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_ENABLE_DEMO_LOGIN: "false"
+    container_name: gef_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - gef_net
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  pgdata:
+  n8n_data:

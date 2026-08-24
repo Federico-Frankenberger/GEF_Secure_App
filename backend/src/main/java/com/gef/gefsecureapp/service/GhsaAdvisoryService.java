@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
@@ -41,7 +42,16 @@ public class GhsaAdvisoryService {
     @Value("${github.token:}")
     private String githubToken;
 
-    @Transactional
+    // RPT-GHSA-404 (docs/bitacora/24-08-26/AUDITORIA_SECCIONES_NUEVAS.md): REQUIRES_NEW
+    // en vez de REQUIRED -- este metodo se invoca desde dentro de otras transacciones
+    // @Transactional (ReportPdfService.generateCveReport/previewCve), que atrapan a
+    // proposito GhsaAdvisoryUnavailableException para degradar sin descripcion. Con
+    // REQUIRED, una falla aca marcaba la transaccion COMPARTIDA del caller como
+    // rollback-only, y aunque el caller atrapara la excepcion, Spring tiraba
+    // UnexpectedRollbackException al intentar comitear -- rompiendo con 500 algo que el
+    // propio codigo ya sabia manejar. Con REQUIRES_NEW, una falla aca queda contenida en
+    // su propia transaccion (suspende y luego resume la del caller intacta).
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public GhsaAdvisoryDTO getByGhsaId(String ghsaId) {
         if (ghsaId == null || ghsaId.isBlank())
             throw new GhsaAdvisoryUnavailableException("Este hallazgo no tiene un GHSA ID asociado");

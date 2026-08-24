@@ -79,3 +79,25 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+
+  # Plan de confiabilidad (2026-08-24): la logica JS critica embebida en los Code
+  # nodes de n8n (workflows/*.json) no tenia ningun test -- se verificaba a mano en
+  # cada auditoria end-to-end. Paquete Node aislado (no comparte nada con frontend/),
+  # ver workflows/tests/ para el detalle de como se extrae y valida la logica real.
+  n8n-logic:
+    name: n8n workflow logic (Vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workflows/tests
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: workflows/tests/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test

@@ -14,7 +14,7 @@ const links = [
   // FE-13 (docs/20-08-26/AUDITORIA_END_TO_END.md): "Informes" incluye el resumen
   // ejecutivo y la exportación de cualquier escaneo del historial -- antes era visible
   // para todos los roles, incluido ASSET_OWNER/AUDITOR, sin ninguna restricción acá.
-  { to: '/informes',   icon: FileText,          label: 'Informes', roles: ['ADMIN', 'SECURITY_ANALYST'] },
+  { to: '/informes',   icon: FileText,          label: 'Informes', roles: ['ADMIN', 'SECURITY_ANALYST', 'AUDITOR'] },
   // P-11 (auditoría UX/UI): Settings.tsx ya tenía una vista de solo-lectura de
   // Entornos para SECURITY_ANALYST/AUDITOR (`canViewEnvironments`), pero era
   // inalcanzable porque este link solo era visible para ADMIN -- quedaba

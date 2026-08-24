@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Trash2, Pencil, RefreshCw, AlertCircle, ShieldOff, UserPlus, Globe, Server, Package } from 'lucide-react'
+import { Plus, Trash2, Pencil, RefreshCw, AlertCircle, ShieldOff, UserPlus, Globe, Server, Package, Ban, CheckCircle2, Link2, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { userApi, systemErrorApi, assetApi, assetAssignmentApi, environmentApi, assetTypeApi, ecosystemApi } from '../services/api'
 import type { User, UserRequest, SystemError, Asset, UserAssetAssignment, Environment, EnvironmentRequest, AssetType, Ecosystem } from '../types'
@@ -12,7 +12,18 @@ import { CRITICALITY_BADGE } from '../constants/badges'
 const EMPTY_USER: UserRequest = { username: '', fullName: '', email: '', role: 'AUDITOR', password: '' }
 const EMPTY_ENV: EnvironmentRequest = { name: '', businessCriticality: 'BAJA', description: '' }
 const CRITICALITY_OPTIONS = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA']
-type Tab = 'users' | 'assignments' | 'errors' | 'environments' | 'assetTypes' | 'ecosystems'
+
+// Centro de Administración (docs/bitacora/23-08-26, prompt_mejora_configuracion_gef_secure.md):
+// antes 6 tabs planos (Usuarios, Asignaciones, Entornos, Tipos de Host, Ecosistemas, Log de
+// Errores), todos al mismo nivel. Se reagrupa en 3 -- "Usuarios y Accesos" (unifica los 2
+// primeros: antes había que ir a un tab aparte y elegir un ACTIVO para ver sus usuarios, ahora
+// se ve todo por usuario), "Catálogos" (los 3 datos maestros triviales) y "Sistema" (log de
+// errores). No se agregaron secciones de Organización/Integraciones/Seguridad/Notificaciones:
+// no existe nada real que configurar ahí hoy (Slack/n8n/escaneos viven 100% en .env/n8n,
+// sin ningún puente en este backend -- ver ADR-0003) y simular una pantalla para eso sería
+// mentirle al usuario sobre qué hace la aplicación.
+type MainTab = 'usuarios' | 'catalogos' | 'sistema'
+type CatalogTab = 'environments' | 'assetTypes' | 'ecosystems'
 
 export default function Settings() {
   const { user: currentUser } = useAuth()
@@ -23,19 +34,29 @@ export default function Settings() {
   const [errorPage,   setErrorPage]   = useState(0)
   const [loadU,   setLoadU]   = useState(true)
   const [loadE,   setLoadE]   = useState(true)
-  const [tab,     setTab]     = useState<Tab>('users')
+  const [mainTab,    setMainTab]    = useState<MainTab>('usuarios')
+  const [catalogTab, setCatalogTab] = useState<CatalogTab>('environments')
   const [modal,   setModal]   = useState(false)
   const [editing, setEditing] = useState<User | null>(null)
   const [form,    setForm]    = useState<UserRequest>(EMPTY_USER)
   const [saving,  setSaving]  = useState(false)
+  const [togglingActiveId, setTogglingActiveId] = useState<number | null>(null)
+  // Búsqueda cliente-side -- la cantidad de usuarios hoy es chica (paginación server-side
+  // sería sobre-ingeniería), pero a medida que crezca esto evita tener que scrollear toda
+  // la tabla para encontrar a alguien.
+  const [userSearch, setUserSearch] = useState('')
 
-  const [assets,          setAssets]          = useState<Asset[]>([])
-  const [loadAssets,      setLoadAssets]      = useState(true)
-  const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null)
-  const [assignments,     setAssignments]     = useState<UserAssetAssignment[]>([])
-  const [loadAssign,      setLoadAssign]      = useState(false)
-  const [userToAssign,    setUserToAssign]    = useState<number | ''>('')
-  const [assigning,       setAssigning]       = useState(false)
+  // ── Asignaciones por usuario (Centro de Administración) ───────────────────────────
+  // Reemplaza el flujo anterior (elegir un Activo, ver sus usuarios) por el inverso:
+  // elegir un Usuario, ver y gestionar TODOS sus activos desde un mismo modal -- es la
+  // unificación real que pedía el prompt (tabla Usuario · Rol · Activos · Estado).
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [loadAssets, setLoadAssets] = useState(true)
+  const [assignUser, setAssignUser] = useState<User | null>(null)
+  const [userAssignments, setUserAssignments] = useState<UserAssetAssignment[]>([])
+  const [loadingUserAssignments, setLoadingUserAssignments] = useState(false)
+  const [assetToAssign, setAssetToAssign] = useState<number | ''>('')
+  const [assigning, setAssigning] = useState(false)
 
   // Entornos
   const [environments, setEnvironments] = useState<Environment[]>([])
@@ -60,6 +81,13 @@ export default function Settings() {
   const [editingEco,  setEditingEco]  = useState<Ecosystem | null>(null)
   const [ecoName,     setEcoName]     = useState('')
   const [savingEco,   setSavingEco]   = useState(false)
+
+  const isAdmin = currentUser?.role === 'ADMIN'
+  // P-11 (auditoría UX/UI) + Centro de Administración: los 3 catálogos (antes solo
+  // Entornos) son igual de "datos maestros genéricos" -- sus GET ya están abiertos a
+  // cualquier rol autenticado en el backend, el frontend era más restrictivo de lo
+  // necesario al dejar Tipos de Host/Ecosistemas fuera de la vista de solo lectura.
+  const canViewCatalogs = isAdmin || currentUser?.role === 'SECURITY_ANALYST' || currentUser?.role === 'AUDITOR'
 
   const loadEnvironments = useCallback(() => {
     setLoadEnv(true)
@@ -101,26 +129,20 @@ export default function Settings() {
       .finally(() => setLoadE(false))
   }, [])
 
-  const isAdmin = currentUser?.role === 'ADMIN'
-  // P-11 (auditoría UX/UI): antes esta sección entera (incluidos los Entornos, que no
-  // tienen ninguna otra vista en la app) era ADMIN-only -- un SECURITY_ANALYST/AUDITOR no
-  // podía ver ni la lista de entornos ni su criticidad de negocio en ningún lugar dedicado.
-  const canViewEnvironments = isAdmin || currentUser?.role === 'SECURITY_ANALYST' || currentUser?.role === 'AUDITOR'
-
   useEffect(() => {
     if (!isAdmin) return
     loadUsers()
     loadErrors()
+  }, [isAdmin, loadUsers, loadErrors])
+
+  // Catálogos: lectura para ADMIN/SECURITY_ANALYST/AUDITOR, escritura solo ADMIN (ver
+  // gating de los botones de acción en cada columna de abajo).
+  useEffect(() => {
+    if (!canViewCatalogs) return
+    loadEnvironments()
     loadAssetTypes()
     loadEcosystems()
-  }, [isAdmin, loadUsers, loadErrors, loadAssetTypes, loadEcosystems])
-
-  // Entornos: lectura para ADMIN/SECURITY_ANALYST/AUDITOR, escritura solo ADMIN (ver
-  // gating de los botones de acción en environmentColumns y del botón "Nuevo Entorno").
-  useEffect(() => {
-    if (!canViewEnvironments) return
-    loadEnvironments()
-  }, [canViewEnvironments, loadEnvironments])
+  }, [canViewCatalogs, loadEnvironments, loadAssetTypes, loadEcosystems])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -131,30 +153,40 @@ export default function Settings() {
       .finally(() => setLoadAssets(false))
   }, [isAdmin])
 
-  const loadAssignments = useCallback((assetId: number) => {
-    setLoadAssign(true)
-    assetAssignmentApi.getByAsset(assetId)
-      .then(r => setAssignments(r.data))
-      .catch(() => toast.error('Error al cargar asignaciones'))
-      .finally(() => setLoadAssign(false))
+  const loadUserAssignments = useCallback((userId: number) => {
+    setLoadingUserAssignments(true)
+    userApi.getAssignments(userId)
+      .then(r => setUserAssignments(r.data))
+      .catch(() => toast.error('Error al cargar los activos asignados'))
+      .finally(() => setLoadingUserAssignments(false))
   }, [])
 
-  useEffect(() => {
-    if (isAdmin && selectedAssetId != null) loadAssignments(selectedAssetId)
-  }, [isAdmin, selectedAssetId, loadAssignments])
+  const openAssignModal = (u: User) => {
+    setAssignUser(u)
+    setAssetToAssign('')
+    loadUserAssignments(u.id)
+  }
+  const closeAssignModal = () => { setAssignUser(null); setUserAssignments([]) }
 
-  const ownerUsers = users.filter(u => u.role === 'ASSET_OWNER')
-  const assignableUsers = ownerUsers.filter(u => !assignments.some(a => a.userId === u.id))
-  const selectedAssetName = assets.find(a => a.id === selectedAssetId)?.name ?? null
+  const assignableAssets = assets.filter(a => !userAssignments.some(ua => ua.assetId === a.id))
+
+  const filteredUsers = users.filter(u => {
+    const q = userSearch.trim().toLowerCase()
+    if (!q) return true
+    return u.username.toLowerCase().includes(q)
+      || (u.fullName ?? '').toLowerCase().includes(q)
+      || (u.email ?? '').toLowerCase().includes(q)
+      || u.role.toLowerCase().includes(q)
+  })
 
   const handleAssign = async () => {
-    if (selectedAssetId == null || userToAssign === '') return
+    if (!assignUser || assetToAssign === '') return
     setAssigning(true)
     try {
-      await assetAssignmentApi.assign(selectedAssetId, { userId: userToAssign })
-      toast.success('Usuario asignado')
-      setUserToAssign('')
-      loadAssignments(selectedAssetId)
+      await assetAssignmentApi.assign(Number(assetToAssign), { userId: assignUser.id })
+      toast.success('Activo asignado')
+      setAssetToAssign('')
+      loadUserAssignments(assignUser.id)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al asignar')
     } finally {
@@ -162,12 +194,12 @@ export default function Settings() {
     }
   }
 
-  const handleUnassign = async (userId: number) => {
-    if (selectedAssetId == null) return
+  const handleUnassign = async (assetId: number) => {
+    if (!assignUser) return
     try {
-      await assetAssignmentApi.unassign(selectedAssetId, userId)
+      await assetAssignmentApi.unassign(assetId, assignUser.id)
       toast.success('Asignación eliminada')
-      loadAssignments(selectedAssetId)
+      loadUserAssignments(assignUser.id)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al desasignar')
     }
@@ -200,9 +232,25 @@ export default function Settings() {
   }
 
   const handleDeleteUser = async (id: number) => {
-    if (!confirm('¿Eliminar este usuario?')) return
+    if (!confirm('¿Eliminar este usuario? Si tiene historial asociado, puede que no se pueda -- considerá desactivarlo en su lugar.')) return
     try { await userApi.delete(id); toast.success('Usuario eliminado'); loadUsers() }
     catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  // Centro de Administración (docs/bitacora/23-08-26): desactivar en vez de borrar --
+  // preserva asignaciones/historial. El backend además rechaza que un ADMIN se
+  // desactive a sí mismo; acá se oculta directamente esa opción para su propia fila.
+  const handleToggleActive = async (u: User) => {
+    setTogglingActiveId(u.id)
+    try {
+      await userApi.setActive(u.id, !u.active)
+      toast.success(u.active ? 'Usuario desactivado' : 'Usuario reactivado')
+      loadUsers()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al cambiar el estado')
+    } finally {
+      setTogglingActiveId(null)
+    }
   }
 
   const handleDeleteError = async (id: number) => {
@@ -326,7 +374,6 @@ export default function Settings() {
   const userColumns: Column<User>[] = [
     { key: 'username', label: 'Username', render: v => <span className="font-mono text-xs">{String(v)}</span> },
     { key: 'fullName', label: 'Nombre completo' },
-    { key: 'email',    label: 'Email' },
     {
       key: 'role', label: 'Rol',
       render: v => (
@@ -335,24 +382,49 @@ export default function Settings() {
         </span>
       ),
     },
-    { key: 'createdAt', label: 'Creado', render: v => v ? new Date(String(v)).toLocaleDateString('es-AR') : '—' },
+    {
+      key: 'assignedAssets', label: 'Activos asignados',
+      render: (_v, row) => row.role === 'ASSET_OWNER' ? (
+        <button onClick={() => openAssignModal(row)} className="btn-ghost !py-1 !px-2 text-xs">
+          <Link2 size={12} /> Ver / asignar
+        </button>
+      ) : <span className="text-slate-600 text-xs">—</span>,
+    },
+    {
+      key: 'active', label: 'Estado',
+      render: v => (
+        <span className={`badge ${v ? 'bg-severity-low/15 text-severity-low border border-severity-low/30' : 'bg-slate-700 text-slate-500 border border-slate-600'}`}>
+          {v ? 'Activo' : 'Inactivo'}
+        </span>
+      ),
+    },
     {
       key: 'id', label: '',
-      render: (v, row) => (
-        <div className="flex gap-1">
-          <button onClick={() => openEdit(row)} className="btn-ghost !py-1 !px-2"><Pencil size={13} /></button>
-          <button onClick={() => handleDeleteUser(Number(v))} className="btn-ghost !py-1 !px-2 text-red-400"><Trash2 size={13} /></button>
-        </div>
-      ),
+      render: (v, row) => {
+        const isSelf = row.username === currentUser?.username
+        return (
+          <div className="flex gap-1">
+            <button onClick={() => openEdit(row)} className="btn-ghost !py-1 !px-2" aria-label={`Editar ${row.username}`}><Pencil size={13} /></button>
+            <button
+              onClick={() => handleToggleActive(row)}
+              disabled={togglingActiveId === row.id || isSelf}
+              title={isSelf ? 'No podés desactivar tu propia cuenta' : row.active ? 'Desactivar' : 'Reactivar'}
+              className={`btn-ghost !py-1 !px-2 ${row.active ? 'text-amber-400' : 'text-severity-low'}`}
+            >
+              {row.active ? <Ban size={13} /> : <CheckCircle2 size={13} />}
+            </button>
+            <button onClick={() => handleDeleteUser(Number(v))} className="btn-ghost !py-1 !px-2 text-red-400" aria-label={`Eliminar ${row.username}`}><Trash2 size={13} /></button>
+          </div>
+        )
+      },
     },
   ]
 
-  const assignmentColumns: Column<UserAssetAssignment>[] = [
-    { key: 'username',     label: 'Username',  render: v => <span className="font-mono text-xs">{String(v)}</span> },
-    { key: 'userFullName', label: 'Nombre completo', render: v => String(v ?? '—') },
-    { key: 'assignedAt',   label: 'Asignado el', render: v => v ? new Date(String(v)).toLocaleDateString('es-AR') : '—' },
+  const userAssignmentColumns: Column<UserAssetAssignment>[] = [
+    { key: 'assetName', label: 'Activo' },
+    { key: 'assignedAt', label: 'Asignado el', render: v => v ? new Date(String(v)).toLocaleDateString('es-AR') : '—' },
     {
-      key: 'userId', label: '',
+      key: 'assetId', label: '',
       render: v => (
         <button onClick={() => handleUnassign(Number(v))} className="btn-ghost !py-1 !px-2 text-red-400"><Trash2 size={13} /></button>
       ),
@@ -380,56 +452,29 @@ export default function Settings() {
 
   const assetTypeColumns: Column<AssetType>[] = [
     { key: 'name', label: 'Nombre', render: v => <span className="font-mono text-xs">{String(v)}</span> },
-    {
+    ...(isAdmin ? [{
       key: 'id', label: '',
-      render: (v, row) => (
+      render: (v: unknown, row: AssetType) => (
         <div className="flex gap-1">
           <button onClick={() => openEditAT(row)} className="btn-ghost !py-1 !px-2"><Pencil size={13} /></button>
           <button onClick={() => handleDeleteAT(Number(v))} className="btn-ghost !py-1 !px-2 text-red-400"><Trash2 size={13} /></button>
         </div>
       ),
-    },
+    }] : []),
   ]
 
   const ecosystemColumns: Column<Ecosystem>[] = [
     { key: 'name', label: 'Nombre', render: v => <span className="font-mono text-xs">{String(v)}</span> },
-    {
+    ...(isAdmin ? [{
       key: 'id', label: '',
-      render: (v, row) => (
+      render: (v: unknown, row: Ecosystem) => (
         <div className="flex gap-1">
           <button onClick={() => openEditEco(row)} className="btn-ghost !py-1 !px-2"><Pencil size={13} /></button>
           <button onClick={() => handleDeleteEco(Number(v))} className="btn-ghost !py-1 !px-2 text-red-400"><Trash2 size={13} /></button>
         </div>
       ),
-    },
+    }] : []),
   ]
-
-  if (!isAdmin && canViewEnvironments) {
-    // P-11: SECURITY_ANALYST/AUDITOR no entran a "Configuración" completa, pero sí a una
-    // vista de solo lectura de Entornos -- antes esto no existía en ningún lado para ellos.
-    return (
-      <div className="animate-fade-in">
-        <PageHeader title="Entornos" subtitle="Criticidad de negocio por entorno (solo lectura)" />
-        <p className="text-sm text-slate-500 mb-4">{environments.length} entorno(s)</p>
-        <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
-          <Table columns={environmentColumns} data={environments} loading={loadEnv} emptyMessage="No hay entornos" />
-        </div>
-      </div>
-    )
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="animate-fade-in">
-        <PageHeader title="Configuración" subtitle="Usuarios, auditores y log de errores del sistema" />
-        <div className="card flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <ShieldOff size={32} className="text-slate-500" />
-          <p className="text-slate-300 font-medium">Acceso restringido</p>
-          <p className="text-sm text-slate-500">Esta sección es solo para usuarios con rol ADMIN.</p>
-        </div>
-      </div>
-    )
-  }
 
   const errorColumns: Column<SystemError>[] = [
     { key: 'errorDate',    label: 'Fecha',    render: v => v ? new Date(String(v)).toLocaleString('es-AR') : '—' },
@@ -444,29 +489,113 @@ export default function Settings() {
     },
   ]
 
-  return (
-    <div className="animate-fade-in">
-      <PageHeader title="Configuración" subtitle="Usuarios, auditores y log de errores del sistema" />
+  // ASSET_OWNER (o cualquier rol futuro fuera de los 3 con acceso a Configuración):
+  // el sidebar ya oculta este link, pero si llega por URL directa, mensaje claro en
+  // vez de una pantalla rota/vacía -- mismo patrón que el resto de la app.
+  if (!canViewCatalogs) {
+    return (
+      <div className="animate-fade-in">
+        <PageHeader title="Configuración" subtitle="Centro de administración" />
+        <div className="card flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <ShieldOff size={32} className="text-slate-500" />
+          <p className="text-slate-300 font-medium">Acceso restringido</p>
+          <p className="text-sm text-slate-500">Esta sección no está disponible para tu rol.</p>
+        </div>
+      </div>
+    )
+  }
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-5 bg-surface-800 border border-surface-600 rounded-xl p-1 w-fit">
-        {([
-          { key: 'users',       label: 'Usuarios / Auditores' },
-          { key: 'assignments', label: 'Asignaciones', icon: UserPlus },
-          { key: 'environments', label: 'Entornos', icon: Globe },
-          { key: 'assetTypes',  label: 'Tipos de Host', icon: Server },
-          { key: 'ecosystems',  label: 'Ecosistemas', icon: Package },
-          { key: 'errors',      label: 'Log de Errores', icon: AlertCircle },
-        ] as { key: Tab; label: string; icon?: React.ElementType }[]).map(t => (
+  const catalogTabs: { key: CatalogTab; label: string; icon: typeof Globe }[] = [
+    { key: 'environments', label: 'Entornos', icon: Globe },
+    { key: 'assetTypes', label: 'Tipos de Host', icon: Server },
+    { key: 'ecosystems', label: 'Ecosistemas', icon: Package },
+  ]
+
+  const catalogSection = (
+    <div>
+      <div className="flex gap-1 mb-4 bg-surface-900 border border-surface-600 rounded-lg p-1 w-fit">
+        {catalogTabs.map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all
-              ${tab === t.key ? 'bg-brand-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+            onClick={() => setCatalogTab(t.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all
+              ${catalogTab === t.key ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white'}`}
           >
-            {t.icon && <t.icon size={13} />}
+            <t.icon size={12} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {catalogTab === 'environments' && (
+        <>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm text-slate-500">{environments.length} entorno(s)</p>
+            {isAdmin && <button onClick={openCreateEnv} className="btn-primary"><Plus size={14} /> Nuevo Entorno</button>}
+          </div>
+          <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
+            <Table columns={environmentColumns} data={environments} loading={loadEnv} emptyMessage="No hay entornos" />
+          </div>
+        </>
+      )}
+
+      {catalogTab === 'assetTypes' && (
+        <>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm text-slate-500">{assetTypes.length} tipo(s) de host</p>
+            {isAdmin && <button onClick={openCreateAT} className="btn-primary"><Plus size={14} /> Nuevo Tipo</button>}
+          </div>
+          <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
+            <Table columns={assetTypeColumns} data={assetTypes} loading={loadAT} emptyMessage="No hay tipos de host" />
+          </div>
+        </>
+      )}
+
+      {catalogTab === 'ecosystems' && (
+        <>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm text-slate-500">{ecosystems.length} ecosistema(s)</p>
+            {isAdmin && <button onClick={openCreateEco} className="btn-primary"><Plus size={14} /> Nuevo Ecosistema</button>}
+          </div>
+          <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
+            <Table columns={ecosystemColumns} data={ecosystems} loading={loadEco} emptyMessage="No hay ecosistemas" />
+          </div>
+        </>
+      )}
+    </div>
+  )
+
+  if (!isAdmin) {
+    // SECURITY_ANALYST/AUDITOR: solo Catálogos, de solo lectura (sin botones de acción,
+    // ya gateados adentro de cada columna por `isAdmin`).
+    return (
+      <div className="animate-fade-in">
+        <PageHeader title="Catálogos" subtitle="Entornos, tipos de host y ecosistemas (solo lectura)" />
+        {catalogSection}
+      </div>
+    )
+  }
+
+  const mainTabs: { key: MainTab; label: string; icon: typeof UserPlus }[] = [
+    { key: 'usuarios', label: 'Usuarios y Accesos', icon: UserPlus },
+    { key: 'catalogos', label: 'Catálogos', icon: Globe },
+    { key: 'sistema', label: 'Sistema', icon: AlertCircle },
+  ]
+
+  return (
+    <div className="animate-fade-in">
+      <PageHeader title="Configuración" subtitle="Centro de administración" />
+
+      <div className="flex gap-1 mb-5 bg-surface-800 border border-surface-600 rounded-xl p-1 w-fit">
+        {mainTabs.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setMainTab(t.key)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all
+              ${mainTab === t.key ? 'bg-brand-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+          >
+            <t.icon size={13} />
             {t.label}
-            {t.key === 'errors' && errorsTotal > 0 && (
+            {t.key === 'sistema' && errorsTotal > 0 && (
               <span className="ml-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
                 {errorsTotal > 9 ? '9+' : errorsTotal}
               </span>
@@ -475,130 +604,34 @@ export default function Settings() {
         ))}
       </div>
 
-      {tab === 'users' && (
+      {mainTab === 'usuarios' && (
         <>
-          <div className="flex justify-between items-center mb-4">
-            <p className="text-sm text-slate-500">{users.length} usuario(s)</p>
+          <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-slate-500 whitespace-nowrap">
+                {filteredUsers.length === users.length ? `${users.length} usuario(s)` : `${filteredUsers.length} de ${users.length} usuario(s)`}
+              </p>
+              <div className="relative w-56">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  className="input !py-1.5 !pl-7"
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                  placeholder="Buscar por nombre, usuario, email o rol…"
+                />
+              </div>
+            </div>
             <button onClick={openCreate} className="btn-primary"><Plus size={14} /> Nuevo Usuario</button>
           </div>
           <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
-            <Table columns={userColumns} data={users} loading={loadU} emptyMessage="No hay usuarios" />
+            <Table columns={userColumns} data={filteredUsers} loading={loadU} emptyMessage={userSearch ? 'Ningún usuario coincide con la búsqueda' : 'No hay usuarios'} />
           </div>
         </>
       )}
 
-      {tab === 'assignments' && (
-        <>
-          <div className="card mb-5">
-            <p className="text-sm font-medium text-white mb-4">Asignar responsable a un activo</p>
+      {mainTab === 'catalogos' && catalogSection}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">1. Activo</label>
-                <select
-                  className="input"
-                  value={selectedAssetId ?? ''}
-                  disabled={loadAssets}
-                  onChange={e => setSelectedAssetId(e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">{assets.length === 0 ? 'Sin activos' : 'Elegir activo…'}</option>
-                  {assets.map(a => (
-                    <option key={a.id} value={a.id}>{a.name}{a.environmentName ? ` · ${a.environmentName}` : ''}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">2. Usuario ASSET_OWNER</label>
-                <select
-                  className="input"
-                  value={userToAssign}
-                  onChange={e => setUserToAssign(e.target.value ? Number(e.target.value) : '')}
-                  disabled={assignableUsers.length === 0}
-                >
-                  <option value="">Elegir usuario…</option>
-                  {assignableUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.username}{u.fullName ? ` (${u.fullName})` : ''}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {ownerUsers.length === 0 ? (
-              <p className="text-xs text-amber-400 mt-3">
-                No hay usuarios con rol ASSET_OWNER todavía — creá uno desde la pestaña "Usuarios / Auditores" para poder asignarlo acá.
-              </p>
-            ) : (
-              <div className="flex justify-end mt-3">
-                <button
-                  onClick={handleAssign}
-                  disabled={assigning || userToAssign === '' || selectedAssetId == null}
-                  className="btn-primary"
-                >
-                  <Plus size={14} /> Asignar
-                </button>
-              </div>
-            )}
-          </div>
-
-          {selectedAssetId == null ? (
-            <div className="card text-center py-10">
-              <p className="text-sm text-slate-500">Elegí un activo arriba para ver sus usuarios asignados.</p>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-slate-500 mb-3">
-                Usuarios asignados a <span className="text-white font-medium">{selectedAssetName}</span>
-              </p>
-              <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
-                <Table
-                  columns={assignmentColumns}
-                  data={assignments}
-                  loading={loadAssign}
-                  emptyMessage="Este activo no tiene usuarios asignados"
-                />
-              </div>
-            </>
-          )}
-        </>
-      )}
-
-      {tab === 'environments' && (
-        <>
-          <div className="flex justify-between items-center mb-4">
-            <p className="text-sm text-slate-500">{environments.length} entorno(s)</p>
-            <button onClick={openCreateEnv} className="btn-primary"><Plus size={14} /> Nuevo Entorno</button>
-          </div>
-          <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
-            <Table columns={environmentColumns} data={environments} loading={loadEnv} emptyMessage="No hay entornos" />
-          </div>
-        </>
-      )}
-
-      {tab === 'assetTypes' && (
-        <>
-          <div className="flex justify-between items-center mb-4">
-            <p className="text-sm text-slate-500">{assetTypes.length} tipo(s) de host</p>
-            <button onClick={openCreateAT} className="btn-primary"><Plus size={14} /> Nuevo Tipo</button>
-          </div>
-          <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
-            <Table columns={assetTypeColumns} data={assetTypes} loading={loadAT} emptyMessage="No hay tipos de host" />
-          </div>
-        </>
-      )}
-
-      {tab === 'ecosystems' && (
-        <>
-          <div className="flex justify-between items-center mb-4">
-            <p className="text-sm text-slate-500">{ecosystems.length} ecosistema(s)</p>
-            <button onClick={openCreateEco} className="btn-primary"><Plus size={14} /> Nuevo Ecosistema</button>
-          </div>
-          <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
-            <Table columns={ecosystemColumns} data={ecosystems} loading={loadEco} emptyMessage="No hay ecosistemas" />
-          </div>
-        </>
-      )}
-
-      {tab === 'errors' && (
+      {mainTab === 'sistema' && (
         <>
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-slate-500">{errorsTotal} error(es) en el log</p>
@@ -662,6 +695,44 @@ export default function Settings() {
             >
               {saving ? 'Guardando…' : 'Guardar'}
             </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal asignaciones por usuario */}
+      <Modal
+        title={assignUser ? `Activos asignados a ${assignUser.fullName || assignUser.username}` : 'Activos asignados'}
+        open={!!assignUser}
+        onClose={closeAssignModal}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Agregar activo</label>
+              <select
+                className="input"
+                value={assetToAssign}
+                onChange={e => setAssetToAssign(e.target.value ? Number(e.target.value) : '')}
+                disabled={loadAssets || assignableAssets.length === 0}
+              >
+                <option value="">{assignableAssets.length === 0 ? 'Sin activos disponibles' : 'Elegir activo…'}</option>
+                {assignableAssets.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}{a.environmentName ? ` · ${a.environmentName}` : ''}</option>
+                ))}
+              </select>
+            </div>
+            <button onClick={handleAssign} disabled={assigning || assetToAssign === ''} className="btn-primary">
+              <Plus size={14} /> Asignar
+            </button>
+          </div>
+
+          <div className="card p-0 overflow-hidden rounded-xl border border-surface-600">
+            <Table
+              columns={userAssignmentColumns}
+              data={userAssignments}
+              loading={loadingUserAssignments}
+              emptyMessage="Sin activos asignados todavía"
+            />
           </div>
         </div>
       </Modal>

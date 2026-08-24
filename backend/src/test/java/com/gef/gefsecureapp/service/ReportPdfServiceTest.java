@@ -1,6 +1,9 @@
 package com.gef.gefsecureapp.service;
 
-import com.gef.gefsecureapp.dto.DashboardStatsDTO;
+import com.gef.gefsecureapp.dto.CvePreviewDTO;
+import com.gef.gefsecureapp.dto.RemediationAnalysisDTO;
+import com.gef.gefsecureapp.dto.VulnerabilityAnalysisDTO;
+import com.gef.gefsecureapp.dto.VulnerabilitySummaryDTO;
 import com.gef.gefsecureapp.exception.ResourceNotFoundException;
 import com.gef.gefsecureapp.mapper.VulnerabilityAuditMapper;
 import com.gef.gefsecureapp.model.Asset;
@@ -35,14 +38,13 @@ class ReportPdfServiceTest {
 
     @Mock private ScanReportRepository scanReportRepository;
     @Mock private VulnerabilityAuditService vulnerabilityAuditService;
-    @Mock private DashboardService dashboardService;
     @Mock private AssetVulnerabilityRepository assetVulnerabilityRepository;
     @Mock private GhsaAdvisoryService ghsaAdvisoryService;
     @Mock private VulnerabilityAuditMapper vulnerabilityAuditMapper;
     @Mock private UserAssetAssignmentService userAssetAssignmentService;
 
     private ReportPdfService service() {
-        return new ReportPdfService(scanReportRepository, vulnerabilityAuditService, dashboardService,
+        return new ReportPdfService(scanReportRepository, vulnerabilityAuditService,
                 assetVulnerabilityRepository, ghsaAdvisoryService, vulnerabilityAuditMapper, userAssetAssignmentService);
     }
 
@@ -94,13 +96,18 @@ class ReportPdfServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
+    private VulnerabilitySummaryDTO emptySummary() {
+        return VulnerabilitySummaryDTO.builder()
+                .openCount(0L).criticalCount(0L).highCount(0L).exploitedCount(0L)
+                .slaOverdueCount(0L).slaUpcomingCount(0L).affectedAssetsCount(0L)
+                .newLast7Days(0L).resolvedLast7Days(0L).attentionList(List.of())
+                .topRiskAssets(List.of()).cisaKevCount(0L).ghsaOnlyCount(0L).build();
+    }
+
     @Test
     @DisplayName("generateExecutiveReport() produce bytes de un PDF válido")
     void generateExecutiveReport_should_producePdfBytes() {
-        when(dashboardService.getStats()).thenReturn(DashboardStatsDTO.builder()
-                .totalAssets(5L).totalVulnerabilities(3L).openVulnerabilities(2L)
-                .criticalVulnerabilities(1L).resolvedThisMonth(1L).mttrDeclaredDays(2.5)
-                .systemStatus("ESTABLE").build());
+        when(vulnerabilityAuditService.getSummary()).thenReturn(emptySummary());
         when(assetVulnerabilityRepository.findTop10ByPriorityAndDetectionStatusOrderByLastDetectedAtDesc("CRITICAL", "OPEN"))
                 .thenReturn(List.of());
 
@@ -169,9 +176,7 @@ class ReportPdfServiceTest {
         TestAuth.loginAs(10L, "owner.demo", "ASSET_OWNER");
         Set<Long> scope = Set.of(1L);
         when(userAssetAssignmentService.assignedAssetIds(10L)).thenReturn(scope);
-        when(dashboardService.getStats()).thenReturn(DashboardStatsDTO.builder()
-                .totalAssets(1L).totalVulnerabilities(0L).openVulnerabilities(0L)
-                .criticalVulnerabilities(0L).resolvedThisMonth(0L).systemStatus("✅ ESTABLE").build());
+        when(vulnerabilityAuditService.getSummary()).thenReturn(emptySummary());
         when(assetVulnerabilityRepository
                 .findTop10ByPriorityAndDetectionStatusAndSoftwareComponent_Asset_IdInOrderByLastDetectedAtDesc(
                         "CRITICAL", "OPEN", scope))
@@ -199,5 +204,63 @@ class ReportPdfServiceTest {
 
         verify(assetVulnerabilityRepository, never())
                 .findByCveIdIgnoreCaseOrGhsaIdIgnoreCase(any(), any());
+    }
+
+    // ── Centro de Informes (docs/bitacora/23-08-26): previewCve + informes nuevos ──────
+
+    @Test
+    @DisplayName("previewCve() devuelve found=false sin activos afectados")
+    void previewCve_should_returnNotFound_whenNoMatches() {
+        when(assetVulnerabilityRepository.findByCveIdIgnoreCaseOrGhsaIdIgnoreCase("CVE-0000-0000", "CVE-0000-0000"))
+                .thenReturn(List.of());
+
+        CvePreviewDTO preview = service().previewCve("CVE-0000-0000");
+
+        assertThat(preview.isFound()).isFalse();
+        assertThat(preview.getAffectedAssetsCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("previewCve() para ASSET_OWNER usa la variante scopeada, nunca la global")
+    void previewCve_assetOwner_usaVarianteScopeada() {
+        SecurityContextHolder.clearContext();
+        TestAuth.loginAs(10L, "owner.demo", "ASSET_OWNER");
+        Set<Long> scope = Set.of(1L);
+        when(userAssetAssignmentService.assignedAssetIds(10L)).thenReturn(scope);
+        when(assetVulnerabilityRepository.findByCveIdOrGhsaIdIgnoreCaseAndAssetIn("CVE-1234-5678", scope))
+                .thenReturn(List.of());
+
+        CvePreviewDTO preview = service().previewCve("CVE-1234-5678");
+
+        assertThat(preview.isFound()).isFalse();
+        verify(assetVulnerabilityRepository, never()).findByCveIdIgnoreCaseOrGhsaIdIgnoreCase(any(), any());
+    }
+
+    @Test
+    @DisplayName("generateVulnerabilityAnalysisReport() produce bytes de un PDF válido")
+    void generateVulnerabilityAnalysisReport_should_producePdfBytes() {
+        when(vulnerabilityAuditService.getAnalysis(30)).thenReturn(VulnerabilityAnalysisDTO.builder()
+                .days(30).trend(List.of()).slaOverdueCount(0L).slaUpcomingCount(0L)
+                .slaOnTrackCount(0L).cisaKevCount(0L).ghsaOnlyCount(0L).build());
+
+        byte[] pdf = service().generateVulnerabilityAnalysisReport(30);
+
+        assertThat(pdf).isNotEmpty();
+        assertThat(new String(pdf, 0, 4)).isEqualTo("%PDF");
+    }
+
+    @Test
+    @DisplayName("generateRemediationReport() produce bytes de un PDF válido, con desgloses vacíos")
+    void generateRemediationReport_should_producePdfBytes() {
+        when(vulnerabilityAuditService.getRemediationAnalysis(30)).thenReturn(RemediationAnalysisDTO.builder()
+                .days(30).mttrDeclaredDays(2.5).mttrVerifiedDays(null).mttrByCriticality(List.of())
+                .slaOverdueCount(0L).slaUpcomingCount(0L).slaOnTrackCount(0L)
+                .outcomeBreakdown(List.of()).evidenceLevelBreakdown(List.of())
+                .reopenedCasesCount(0L).build());
+
+        byte[] pdf = service().generateRemediationReport(30);
+
+        assertThat(pdf).isNotEmpty();
+        assertThat(new String(pdf, 0, 4)).isEqualTo("%PDF");
     }
 }

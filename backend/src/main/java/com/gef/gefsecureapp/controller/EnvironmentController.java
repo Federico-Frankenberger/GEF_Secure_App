@@ -1,8 +1,10 @@
 package com.gef.gefsecureapp.controller;
 
+import com.gef.gefsecureapp.exception.ConflictException;
 import com.gef.gefsecureapp.exception.ResourceNotFoundException;
 import com.gef.gefsecureapp.model.Environment;
 import com.gef.gefsecureapp.model.ScanReport;
+import com.gef.gefsecureapp.repository.AssetRepository;
 import com.gef.gefsecureapp.repository.EnvironmentRepository;
 import com.gef.gefsecureapp.service.N8nWebhookService;
 import com.gef.gefsecureapp.service.ScanService;
@@ -24,6 +26,7 @@ import java.util.List;
 public class EnvironmentController {
 
     private final EnvironmentRepository environmentRepository;
+    private final AssetRepository assetRepository;
     private final N8nWebhookService webhookService;
     private final ScanService scanService;
 
@@ -60,11 +63,22 @@ public class EnvironmentController {
         return ResponseEntity.ok(environmentRepository.save(existing));
     }
 
+    // CFG-ENV-DELETE (docs/bitacora/24-08-26/AUDITORIA_SECCIONES_NUEVAS.md): antes esto
+    // borraba sin chequear nada -- la FK asset.environment_id tiene ON DELETE SET NULL
+    // (no RESTRICT), asi que el borrado siempre tenia exito, desvinculando en silencio
+    // cualquier activo que apuntara a este entorno. Reproducido en vivo durante la propia
+    // auditoria (se borro por accidente el entorno real "Producción").
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         if (!environmentRepository.existsById(id))
             throw new ResourceNotFoundException("Environment", id);
+        long activeAssets = assetRepository.countByEnvironment_IdAndDeletedAtIsNull(id);
+        if (activeAssets > 0) {
+            throw new ConflictException(
+                    "No se puede eliminar: hay " + activeAssets + " activo(s) en este entorno. "
+                            + "Reasignalos a otro entorno primero.");
+        }
         environmentRepository.deleteById(id);
         return ResponseEntity.noContent().build();
     }

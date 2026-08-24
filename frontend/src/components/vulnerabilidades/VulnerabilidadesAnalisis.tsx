@@ -3,8 +3,10 @@ import {
   AreaChart, Area, BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { Download } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { vulnApi } from '../../services/api'
+import { vulnApi, reportApi } from '../../services/api'
+import { downloadBlob } from '../../utils/downloadFile'
 import type { VulnerabilityAnalysis } from '../../types'
 
 const CHART_STYLE = { fontFamily: '"IBM Plex Sans", sans-serif', fontSize: 11 }
@@ -26,11 +28,18 @@ function EmptyChart({ message, h = 160 }: { message: string; h?: number }) {
  *  del prompt). Solo cubre lo que el Dashboard general NO calcula (período configurable,
  *  SLA agregado, fuentes CISA KEV vs GHSA) -- severidad/estado/aging/MTTR/por responsable
  *  ya están en el Dashboard con exactamente el mismo cálculo, repetirlos acá violaría la
- *  sección 15 del prompt ("evitar duplicar el Dashboard general"). */
+ *  sección 15 del prompt ("evitar duplicar el Dashboard general").
+ *
+ *  Único lugar donde vive esta vista (docs/bitacora/23-08-26, Centro de Informes): al
+ *  armar Informes se había embebido este mismo componente ahí también, con un botón de
+ *  export aparte -- quedaba duplicado (mismo gráfico, dos rutas distintas). Se decidió
+ *  dejarlo acá, su lugar nativo (ya integrado con refreshTick del Kanban), con el export
+ *  agregado directamente; Informes ahora solo linkea para acá en vez de repetirlo. */
 export default function VulnerabilidadesAnalisis({ refreshTick }: { refreshTick: number }) {
   const [days, setDays] = useState<7 | 30 | 90>(30)
   const [data, setData] = useState<VulnerabilityAnalysis | null>(null)
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
 
   // refreshTick en las deps (no un remount por key desde el padre) para que guardar/
   // eliminar algo desde el detalle refresque los números sin resetear el período elegido.
@@ -41,6 +50,14 @@ export default function VulnerabilidadesAnalisis({ refreshTick }: { refreshTick:
       .catch(() => toast.error('Error al cargar el análisis de vulnerabilidades'))
       .finally(() => setLoading(false))
   }, [days, refreshTick])
+
+  const exportPdf = () => {
+    setExporting(true)
+    reportApi.vulnerabilities(days)
+      .then(r => downloadBlob(r.data, `informe-vulnerabilidades-${days}d.pdf`))
+      .catch(() => toast.error('Error al generar el PDF'))
+      .finally(() => setExporting(false))
+  }
 
   const slaRows = data ? [
     { name: 'Vencido', value: data.slaOverdueCount, color: '#f87171' },
@@ -60,17 +77,22 @@ export default function VulnerabilidadesAnalisis({ refreshTick }: { refreshTick:
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Evolución del backlog
           </p>
-          <div className="flex gap-1 bg-surface-900 border border-surface-600 rounded-lg p-1 w-fit">
-            {PERIODS.map(p => (
-              <button
-                key={p}
-                onClick={() => setDays(p)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all
-                  ${days === p ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                {p}d
-              </button>
-            ))}
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1 bg-surface-900 border border-surface-600 rounded-lg p-1 w-fit">
+              {PERIODS.map(p => (
+                <button
+                  key={p}
+                  onClick={() => setDays(p)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all
+                    ${days === p ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  {p}d
+                </button>
+              ))}
+            </div>
+            <button onClick={exportPdf} disabled={exporting} className="btn-ghost !py-1.5">
+              <Download size={13} /> {exporting ? 'Generando…' : 'Exportar PDF'}
+            </button>
           </div>
         </div>
         {loading ? <ChartSkeleton /> : !data?.trend.length ? (

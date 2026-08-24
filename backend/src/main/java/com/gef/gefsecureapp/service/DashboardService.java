@@ -17,6 +17,7 @@ public class DashboardService {
 
     private final SoftwareComponentRepository softwareComponentRepository;
     private final AssetVulnerabilityRepository vulnRepository;
+    private final StateTransitionRepository stateTransitionRepository;
     private final ScanReportRepository scanReportRepository;
     private final UserAssetAssignmentService userAssetAssignmentService;
     private final AssetRepository assetRepository;
@@ -60,7 +61,11 @@ public class DashboardService {
             statusRows          = vulnRepository.countGroupedByTriageStatus();
             detectionsRows      = vulnRepository.countDailyDetections(since);
             resolutionsRows     = vulnRepository.countDailyResolutions(since);
-            reopenedCasesCount  = vulnRepository.countByReopenCountGreaterThan(0);
+            // Fix 5 (docs/bitacora/24-08-26/plan_fix_bucle_reapertura_vulnerabilidades.md):
+            // countByReopenCountGreaterThan solo contaba reaperturas AUTOMATICAS (reopen_count
+            // nunca se incrementa en la reapertura manual del Kanban) -- state_transitions
+            // con from_state='RESUELTA' cuenta ambos origenes (ESCANER y HUMANO).
+            reopenedCasesCount  = stateTransitionRepository.countReopened();
             agingRows           = vulnRepository.countAgingBuckets();
             mttrByPriorityRows  = vulnRepository.findAverageMttrDeclaredDaysByPriority();
             byResponsibleRows   = vulnRepository.countOpenGroupedByAssignedUser();
@@ -76,7 +81,7 @@ public class DashboardService {
             statusRows          = scope.isEmpty() ? List.of() : vulnRepository.countGroupedByTriageStatus(scope);
             detectionsRows      = scope.isEmpty() ? List.of() : vulnRepository.countDailyDetections(since, scope);
             resolutionsRows     = scope.isEmpty() ? List.of() : vulnRepository.countDailyResolutions(since, scope);
-            reopenedCasesCount  = scope.isEmpty() ? 0 : vulnRepository.countByReopenCountGreaterThanAndSoftwareComponent_Asset_IdIn(0, scope);
+            reopenedCasesCount  = scope.isEmpty() ? 0 : stateTransitionRepository.countReopened(scope);
             agingRows           = scope.isEmpty() ? List.of() : vulnRepository.countAgingBuckets(scope);
             mttrByPriorityRows  = scope.isEmpty() ? List.of() : vulnRepository.findAverageMttrDeclaredDaysByPriority(scope);
             byResponsibleRows   = scope.isEmpty() ? List.of() : vulnRepository.countOpenGroupedByAssignedUser(scope);

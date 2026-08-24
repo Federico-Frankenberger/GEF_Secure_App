@@ -1,7 +1,10 @@
 package com.gef.gefsecureapp.controller;
 
+import com.gef.gefsecureapp.dto.UserAssetAssignmentDTO;
 import com.gef.gefsecureapp.dto.UserDTO;
+import com.gef.gefsecureapp.service.UserAssetAssignmentService;
 import com.gef.gefsecureapp.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final UserAssetAssignmentService assignmentService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','SECURITY_ANALYST')")
@@ -51,5 +55,22 @@ public class UserController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         userService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Centro de Administración (docs/bitacora/23-08-26): acción explícita, no un campo
+    // más del PUT genérico -- desactivar/reactivar es una decisión administrativa
+    // puntual, no una edición de datos del usuario.
+    @PatchMapping("/{id}/active")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserDTO.Response> setActive(
+            @PathVariable Long id, @Valid @RequestBody UserDTO.ActiveRequest dto) {
+        return ResponseEntity.ok(userService.setActive(id, dto.getActive()));
+    }
+
+    @GetMapping("/{id}/assignments")
+    @PreAuthorize("hasAnyRole('ADMIN','SECURITY_ANALYST')")
+    @Operation(summary = "Activos asignados a un usuario (vista inversa de /api/assets/{id}/assignments)")
+    public ResponseEntity<List<UserAssetAssignmentDTO.Response>> assignments(@PathVariable Long id) {
+        return ResponseEntity.ok(assignmentService.findByUser(id));
     }
 }

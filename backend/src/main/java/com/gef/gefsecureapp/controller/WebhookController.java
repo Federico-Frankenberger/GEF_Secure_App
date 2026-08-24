@@ -13,7 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -78,19 +78,23 @@ public class WebhookController {
     // (ej. GLOBAL + ENTORNO disparados casi juntos) pueden actualizar las mismas filas de
     // asset_vulnerabilities en orden distinto en applyLifecycle() y Postgres mata una de
     // las dos transacciones por deadlock -- ese escaneo quedaba en RUNNING para siempre.
-    // Un deadlock es, por naturaleza, una condicion transitoria: la transaccion que gano
-    // ya libero sus locks, asi que reintentar la perdedora resuelve el caso normal.
-    // Generico (Supplier<ScanReport>) porque el mismo riesgo de deadlock aplica tanto al
-    // camino manual (complete) como al automatico (completeAutomatic) -- ambos terminan
-    // escribiendo en asset_vulnerabilities via applyLifecycle().
+    // Un deadlock (CannotAcquireLockException) y un conflicto de version optimista
+    // (ObjectOptimisticLockingFailureException, plan de confiabilidad 2026-08-24 -- ver
+    // AssetVulnerability.version) son, ambos, condiciones transitorias del mismo tipo: la
+    // transaccion que gano ya libero sus locks / ya confirmo su version, asi que reintentar
+    // la perdedora resuelve el caso normal. ConcurrencyFailureException es el ancestro comun
+    // de las dos (org.springframework.dao), asi que un solo catch cubre ambos mecanismos de
+    // proteccion sin duplicar el retry. Generico (Supplier<ScanReport>) porque el mismo
+    // riesgo aplica tanto al camino manual (complete) como al automatico (completeAutomatic)
+    // -- ambos terminan escribiendo en asset_vulnerabilities via applyLifecycle().
     private ScanReport runWithDeadlockRetry(Supplier<ScanReport> action, Object logId) {
         int maxAttempts = 3;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 return action.get();
-            } catch (CannotAcquireLockException e) {
+            } catch (ConcurrencyFailureException e) {
                 if (attempt == maxAttempts) throw e;
-                log.warn("Scan {} — deadlock al completar (intento {}/{}), reintentando: {}",
+                log.warn("Scan {} — conflicto de concurrencia al completar (intento {}/{}), reintentando: {}",
                         logId, attempt, maxAttempts, e.getMessage());
                 try {
                     Thread.sleep(200L * attempt);

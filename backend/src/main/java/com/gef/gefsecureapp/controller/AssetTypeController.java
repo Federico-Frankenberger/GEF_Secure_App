@@ -1,7 +1,9 @@
 package com.gef.gefsecureapp.controller;
 
+import com.gef.gefsecureapp.exception.ConflictException;
 import com.gef.gefsecureapp.exception.ResourceNotFoundException;
 import com.gef.gefsecureapp.model.AssetType;
+import com.gef.gefsecureapp.repository.AssetRepository;
 import com.gef.gefsecureapp.repository.AssetTypeRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,6 +23,7 @@ import java.util.List;
 public class AssetTypeController {
 
     private final AssetTypeRepository repository;
+    private final AssetRepository assetRepository;
 
     @GetMapping
     @Operation(summary = "Listar tipos de host")
@@ -44,11 +47,18 @@ public class AssetTypeController {
         return ResponseEntity.ok(repository.save(existing));
     }
 
+    // CFG-CATALOG-DELETE (docs/bitacora/24-08-26/AUDITORIA_SECCIONES_NUEVAS.md): mismo
+    // hallazgo que Ecosistema -- Asset.assetType es texto libre (sin FK real).
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        if (!repository.existsById(id))
-            throw new ResourceNotFoundException("AssetType", id);
+        AssetType assetType = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("AssetType", id));
+        long inUse = assetRepository.countByAssetTypeIgnoreCaseAndDeletedAtIsNull(assetType.getName());
+        if (inUse > 0) {
+            throw new ConflictException(
+                    "No se puede eliminar: hay " + inUse + " activo(s) usando este tipo de host.");
+        }
         repository.deleteById(id);
         return ResponseEntity.noContent().build();
     }

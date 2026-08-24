@@ -469,7 +469,28 @@ export default function Assets() {
         </span>
       ),
     },
-    { key: 'ecosystem', label: 'Ecosistema' },
+    {
+      key: 'ecosystem', label: 'Ecosistema',
+      render: v => {
+        const value = v ? String(v) : ''
+        if (!value) return <span className="text-slate-500 text-xs">—</span>
+        // BADGE-RACE (docs/bitacora/24-08-26/AUDITORIA_END_TO_END_2.md): mientras
+        // ecosystems todavia no cargo (fetch async en curso), ecosystems.some(...)
+        // da false para CUALQUIER valor -- mostraria "no reconocido" incluso para un
+        // ecosistema valido. Con la lista vacia, no hay base todavia para juzgar.
+        const isKnown = ecosystems.length === 0 || ecosystems.some(e => e.name.toLowerCase() === value.toLowerCase())
+        return (
+          <span className="inline-flex items-center gap-1.5">
+            <span>{value}</span>
+            {!isKnown && (
+              <span className="badge bg-amber-900/40 text-amber-300 shrink-0" title="No es un ecosistema del catálogo (Configuración → Catálogos): nunca va a poder buscar vulnerabilidades contra GitHub Advisory">
+                ecosistema no reconocido
+              </span>
+            )}
+          </span>
+        )
+      },
+    },
     { key: 'version', label: 'Versión', render: v => <span className="font-mono text-xs">{String(v)}</span> },
     { key: 'environmentName', label: 'Entorno', render: v => <span className="text-xs text-slate-300">{v ? String(v) : '—'}</span> },
     {

@@ -30,4 +30,11 @@ public class User {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    // Centro de Administración (docs/bitacora/23-08-26): desactivar en vez de borrar
+    // físicamente cuando el usuario tiene historial (asignaciones, vulnerabilidades
+    // asignadas, transiciones de estado como actor) -- ver AuthService.login() y
+    // UserService.setActive().
+    @Column(nullable = false)
+    private Boolean active;
 }

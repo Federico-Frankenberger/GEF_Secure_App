@@ -236,6 +236,22 @@ class ScanServiceTest {
     }
 
     @Test
+    @DisplayName("Fix 0 (bucle-reapertura 2026-08-24): completeAutomatic() es un no-op si ya hubo una completacion automatica reciente (entrega duplicada del webhook)")
+    void completeAutomatic_should_beNoOp_when_recentAutomaticCompletionExists() {
+        ScanReport previous = ScanReport.builder().id(55L).status("COMPLETED")
+                .startedAt(LocalDateTime.now().minusMinutes(5)).executedAt(LocalDateTime.now().minusMinutes(5)).build();
+        when(scanReportRepository.existsByAutomaticScanTrueAndExecutedAtAfter(any(LocalDateTime.class))).thenReturn(true);
+        when(scanReportRepository.findLatestAutomatic()).thenReturn(Optional.of(previous));
+
+        ScanReport result = scanService.completeAutomatic(new ScanService.ScanCompletionPayload(
+                10, 8, 2, 1, 2, 3, 2, "✅ ESTABLE", "resumen", "{}"));
+
+        assertThat(result).isSameAs(previous);
+        verify(scanReportRepository, never()).save(any());
+        verifyNoInteractions(vulnerabilityAuditService);
+    }
+
+    @Test
     @DisplayName("completeAutomatic() vincula los hallazgos huerfanos (scan_id NULL) antes de correr applyLifecycle")
     void completeAutomatic_should_linkOrphanFindings_beforeApplyingLifecycle() {
         when(scanReportRepository.save(any(ScanReport.class))).thenAnswer(inv -> {

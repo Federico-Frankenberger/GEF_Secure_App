@@ -2,6 +2,7 @@ package com.gef.gefsecureapp.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.groups.Default;
@@ -47,5 +48,14 @@ public class UserDTO {
         private String email;
         private String role;
         private LocalDateTime createdAt;
+        private Boolean active;
+    }
+
+    /** Body de PATCH /api/users/{id}/active -- acción explícita separada del PUT
+     *  genérico, no un campo más de un form de edición completa. */
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class ActiveRequest {
+        @NotNull(message = "El campo active es requerido")
+        private Boolean active;
     }
 }

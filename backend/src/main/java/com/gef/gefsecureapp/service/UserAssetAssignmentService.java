@@ -33,6 +33,16 @@ public class UserAssetAssignmentService {
         return assignmentRepository.findByAsset_Id(assetId).stream().map(this::toResponse).toList();
     }
 
+    // Centro de Administración (docs/bitacora/23-08-26): vista inversa -- antes solo se
+    // podía ir de activo→usuarios (findByAsset arriba); esta es la que faltaba para la
+    // tabla unificada "Usuarios y Accesos" (usuario→sus activos).
+    @Transactional(readOnly = true)
+    public List<UserAssetAssignmentDTO.Response> findByUser(Long userId) {
+        if (!userRepository.existsById(userId))
+            throw new ResourceNotFoundException("User", userId);
+        return assignmentRepository.findByUser_Id(userId).stream().map(this::toResponse).toList();
+    }
+
     @Transactional
     public UserAssetAssignmentDTO.Response assign(Long assetId, UserAssetAssignmentDTO.Request dto) {
         Asset asset = assetRepository.findById(assetId)
@@ -76,6 +86,7 @@ public class UserAssetAssignmentService {
                 .username(a.getUser().getUsername())
                 .userFullName(a.getUser().getFullName())
                 .assetId(a.getAsset().getId())
+                .assetName(a.getAsset().getName())
                 .assignedAt(a.getAssignedAt())
                 .build();
     }

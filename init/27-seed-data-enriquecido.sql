@@ -324,7 +324,7 @@ BEGIN
          assigned_to, status, resolved_at, software, ecosystem, version, priority_variables)
     VALUES
         (NOW() - INTERVAL '25 days', comp_postgres, scan_manual, av_id, 'CVE-2024-10977', 'GHSA-w22j-27h8-4gjq', '8.1', FALSE, 'HIGH',
-         'fede.frankenberger', 'RESUELTA', NOW() - INTERVAL '22 days', 'postgres', 'Docker', '15',
+         'fede.frankenberger', 'RESUELTA', NOW() - INTERVAL '22 days', 'postgres', NULL, '15',
          '{"cvss_score":8.1,"env_criticality":"CRITICA","priority_base":"HIGH","is_cisa_kev":false,"is_zero_day":false,"priority_final":"HIGH"}');
 
     INSERT INTO public.remediation_cycles (asset_vulnerability_id, cycle_number, detected_at, closed_at, created_at)
@@ -358,10 +358,10 @@ BEGIN
          assigned_to, status, software, ecosystem, version, priority_variables)
     VALUES
         (NOW() - INTERVAL '15 days', comp_postgres, scan_manual, av_id, 'CVE-2024-4317', '7.5', TRUE, 'CRITICAL',
-         'SIN_ASIGNAR', 'RESUELTA', 'postgres', 'Docker', '15',
+         'SIN_ASIGNAR', 'RESUELTA', 'postgres', NULL, '15',
          '{"cvss_score":7.5,"env_criticality":"CRITICA","priority_base":"CRITICAL","is_cisa_kev":true,"is_zero_day":false,"priority_final":"CRITICAL"}'),
         (NOW() - INTERVAL '4 days', comp_postgres, scan_auto, av_id, 'CVE-2024-4317', '7.5', TRUE, 'CRITICAL',
-         'SIN_ASIGNAR', 'DETECTADA', 'postgres', 'Docker', '15',
+         'SIN_ASIGNAR', 'DETECTADA', 'postgres', NULL, '15',
          '{"cvss_score":7.5,"env_criticality":"CRITICA","priority_base":"CRITICAL","is_cisa_kev":true,"is_zero_day":false,"priority_final":"CRITICAL"}');
 
     -- Ciclo 1: detectada -> resuelta (en revisión de infraestructura).

@@ -56,4 +56,9 @@ public interface SoftwareComponentRepository extends JpaRepository<SoftwareCompo
     // usado por DashboardService para ASSET_OWNER -- mismo criterio que el resto del scope
     // (no filtra deletedAt, igual que el count() unscoped que reemplaza).
     long countByAsset_IdIn(Collection<Long> assetIds);
+
+    // CFG-CATALOG-DELETE (docs/bitacora/24-08-26/AUDITORIA_SECCIONES_NUEVAS.md): idem para
+    // Ecosistemas -- SoftwareComponent.ecosystem es texto libre, sin FK real, asi que se
+    // compara por nombre (case-insensitive) antes de permitir borrar el catalogo.
+    long countByEcosystemIgnoreCaseAndDeletedAtIsNull(String ecosystem);
 }

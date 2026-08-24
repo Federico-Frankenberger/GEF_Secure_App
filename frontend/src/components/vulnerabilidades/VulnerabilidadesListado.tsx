@@ -30,9 +30,13 @@ export function slaStateOf(dueDate: string | null | undefined): SlaState | null 
  *  profesional con filtros/orden/paginación server-side -- reemplaza el patrón
  *  findAll()+filtrar-en-el-navegador que usaba el Kanban (P-17 del prompt: "evitar
  *  descargar todas las vulnerabilidades al frontend"). */
-export default function VulnerabilidadesListado({ onOpenDetail, refreshTick }: {
+export default function VulnerabilidadesListado({ onOpenDetail, refreshTick, initialPriority, initialTriageStatus }: {
   onOpenDetail: (vuln: VulnerabilityAudit) => void
   refreshTick: number
+  /** Deep-link desde el Dashboard (ej. KPI "Críticas") -- solo siembra el filtro
+   *  inicial, el usuario lo puede cambiar/limpiar como cualquier otro filtro. */
+  initialPriority?: string
+  initialTriageStatus?: string
 }) {
   const { user } = useAuth()
   // GET /api/users solo lo permite el backend a ADMIN y SECURITY_ANALYST (mismo criterio
@@ -49,8 +53,8 @@ export default function VulnerabilidadesListado({ onOpenDetail, refreshTick }: {
     if (canListUsers) userApi.getAll().then(r => setUsers(r.data)).catch(() => {})
   }, [canListUsers])
 
-  const [priority, setPriority] = useState('')
-  const [triageStatus, setTriageStatus] = useState('')
+  const [priority, setPriority] = useState(initialPriority ?? '')
+  const [triageStatus, setTriageStatus] = useState(initialTriageStatus ?? '')
   const [assetId, setAssetId] = useState<number | ''>('')
   const [softwareComponentId, setSoftwareComponentId] = useState<number | ''>('')
   const [assignedToUserId, setAssignedToUserId] = useState<number | ''>('')

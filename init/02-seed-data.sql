@@ -33,7 +33,11 @@ INSERT INTO public.assets (name, software, ecosystem, version, environment_id, d
     ('Spring Boot Backend', 'spring-boot-starter-web', 'Maven', '3.1.0',
         (SELECT id FROM public.environments WHERE name = 'Producción'),
         'API principal de GEF Secure en producción', NOW() - INTERVAL '1 days'),
-    ('PostgreSQL Database', 'postgres', 'Docker', '15',
+    -- ECO-CATALOGO (docs/bitacora/24-08-26/AUDITORIA_END_TO_END.md): 'Docker' no es un
+    -- ecosistema de paquetes de aplicacion real (no esta en public.ecosystems) -- Postgres
+    -- el motor no se instala via npm/pip/maven/etc, asi que no tiene un ecosistema valido
+    -- que asignarle. NULL evita que quede matcheando en falso contra el catalogo.
+    ('PostgreSQL Database', 'postgres', NULL, '15',
         (SELECT id FROM public.environments WHERE name = 'Producción'),
         'Base de datos productiva', NOW() - INTERVAL '3 days');
 

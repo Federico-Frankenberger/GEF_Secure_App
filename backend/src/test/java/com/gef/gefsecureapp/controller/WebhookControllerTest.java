@@ -13,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -160,5 +161,38 @@ class WebhookControllerTest {
         controller.receiveScanReport(VALID_TOKEN, payload);
 
         verify(scanService, times(2)).completeAutomatic(any());
+    }
+
+    // ── N8N-03 (plan de confiabilidad 2026-08-24): AssetVulnerability.version (@Version)
+    // agrega una segunda proteccion de concurrencia, ademas del deadlock -- el mismo retry
+    // debe cubrir ObjectOptimisticLockingFailureException, no solo CannotAcquireLockException,
+    // porque ConcurrencyFailureException es el ancestro comun de ambas. ──
+
+    @Test
+    void receiveScanReport_reintentaAnteConflictoDeVersionOptimistaYTerminaCompletandoElScan() {
+        var payload = new WebhookController.ScanReportPayload();
+        payload.scanId = 127L;
+
+        when(scanService.complete(anyLong(), any()))
+                .thenThrow(new ObjectOptimisticLockingFailureException("AssetVulnerability", 50L))
+                .thenReturn(null);
+
+        controller.receiveScanReport(VALID_TOKEN, payload);
+
+        verify(scanService, times(2)).complete(anyLong(), any());
+    }
+
+    @Test
+    void receiveScanReport_siElConflictoDeVersionPersisteEnLosTresIntentos_propagaLaExcepcion() {
+        var payload = new WebhookController.ScanReportPayload();
+        payload.scanId = 127L;
+
+        when(scanService.complete(anyLong(), any()))
+                .thenThrow(new ObjectOptimisticLockingFailureException("AssetVulnerability", 50L));
+
+        assertThatThrownBy(() -> controller.receiveScanReport(VALID_TOKEN, payload))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+
+        verify(scanService, times(3)).complete(anyLong(), any());
     }
 }

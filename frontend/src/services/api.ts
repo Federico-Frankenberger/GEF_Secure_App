@@ -6,7 +6,7 @@ import type {
   Asset, AssetRequest,
   SoftwareComponent, SoftwareComponentRequest,
   VulnerabilityAudit, VulnerabilityRequest, StatusUpdate,
-  VulnerabilitySummary, VulnerabilitySearchParams, VulnerabilityAnalysis,
+  VulnerabilitySummary, VulnerabilitySearchParams, VulnerabilityAnalysis, RemediationAnalysis, CvePreview,
   User, UserRequest,
   UserAssetAssignment, UserAssetAssignmentRequest,
   DeletedAsset,
@@ -167,6 +167,7 @@ export const vulnApi = {
   search:       (params: VulnerabilitySearchParams) =>
     http.get<PageResponse<VulnerabilityAudit>>('/vulnerabilities/search', { params }),
   analysis:     (days: number) => http.get<VulnerabilityAnalysis>('/vulnerabilities/analysis', { params: { days } }),
+  remediationAnalysis: (days: number) => http.get<RemediationAnalysis>('/vulnerabilities/remediation-analysis', { params: { days } }),
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
@@ -176,6 +177,10 @@ export const userApi = {
   create:  (data: UserRequest)         => http.post<User>('/users', data),
   update:  (id: number, data: UserRequest) => http.put<User>(`/users/${id}`, data),
   delete:  (id: number)                => http.delete(`/users/${id}`),
+  // Centro de Administración (docs/bitacora/23-08-26): acción explícita, no un campo
+  // más del form de edición.
+  setActive: (id: number, active: boolean) => http.patch<User>(`/users/${id}/active`, { active }),
+  getAssignments: (id: number) => http.get<UserAssetAssignment[]>(`/users/${id}/assignments`),
 }
 
 // ── Asset Assignments (scope de ASSET_OWNER) ───────────────────────────────────
@@ -235,4 +240,7 @@ export const reportApi = {
   comparison: (scanAId: number, scanBId: number)   => http.get<Blob>('/reports/comparison', { params: { scanAId, scanBId }, responseType: 'blob', timeout: REPORT_TIMEOUT_MS }),
   executive:  ()                                   => http.get<Blob>('/reports/executive', { responseType: 'blob', timeout: REPORT_TIMEOUT_MS }),
   cve:        (identifier: string)                 => http.get<Blob>(`/reports/cve/${encodeURIComponent(identifier)}`, { responseType: 'blob', timeout: REPORT_TIMEOUT_MS }),
+  cvePreview: (identifier: string)                 => http.get<CvePreview>(`/reports/cve/${encodeURIComponent(identifier)}/preview`),
+  vulnerabilities: (days: number)                  => http.get<Blob>('/reports/vulnerabilities', { params: { days }, responseType: 'blob', timeout: REPORT_TIMEOUT_MS }),
+  remediation: (days: number)                      => http.get<Blob>('/reports/remediation', { params: { days }, responseType: 'blob', timeout: REPORT_TIMEOUT_MS }),
 }

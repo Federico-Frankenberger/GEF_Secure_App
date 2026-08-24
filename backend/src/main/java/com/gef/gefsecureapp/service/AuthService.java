@@ -31,6 +31,15 @@ public class AuthService {
             throw new InvalidCredentialsException(INVALID_CREDENTIALS_MESSAGE);
         }
 
+        // Centro de Administración (docs/bitacora/23-08-26): mismo mensaje genérico que
+        // arriba, por la misma razón -- si fuera un mensaje distinto ("cuenta
+        // desactivada"), alguien probando credenciales robadas se enteraría de que el
+        // username SÍ existe (solo que está desactivado), rompiendo el mismo criterio
+        // anti-enumeración de más arriba.
+        if (!Boolean.TRUE.equals(user.getActive())) {
+            throw new InvalidCredentialsException(INVALID_CREDENTIALS_MESSAGE);
+        }
+
         String token = jwtService.generateToken(user.getId(), user.getUsername(), user.getRole());
         return AuthDTO.LoginResponse.builder()
                 .token(token)

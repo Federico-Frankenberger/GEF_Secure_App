@@ -113,12 +113,18 @@ export default function Dashboard() {
   // de la MISMA lista que la tabla, para que nunca se contradigan entre sí.
   const systemOk = !attentionList.some(v => v.priority === 'CRITICAL')
 
+  // Deep-links al módulo de Vulnerabilidades (docs/bitacora/23-08-26): antes las 5
+  // cards mandaban todas a /kanban a secas -- con el rediseño en 4 vistas, cada una
+  // ahora aterriza en la vista que mejor responde la pregunta que representa. Solo
+  // "Críticas" tiene un filtro de un solo valor limpio (priority=CRITICAL); "Abiertas"
+  // mezcla DETECTADA+EN_ANALISIS y el filtro del Listado es de un solo valor, así que
+  // aterriza sin filtrar en vez de mentir con uno parcial.
   const kpis = [
     { title: 'Total Activos',      value: stats?.totalAssets,             icon: Package,      color: 'brand'   as const, onClick: () => navigate('/assets') },
-    { title: 'Vulnerabilidades',   value: stats?.totalVulnerabilities,    icon: ShieldAlert,  color: 'amber'   as const, onClick: () => navigate('/kanban') },
-    { title: 'Abiertas',           value: stats?.openVulnerabilities,     icon: AlertOctagon, color: 'red'     as const, onClick: () => navigate('/kanban'), emphasize: true },
-    { title: 'Críticas',           value: stats?.criticalVulnerabilities, icon: Flame,        color: 'red'     as const, onClick: () => navigate('/kanban'), emphasize: true },
-    { title: 'Resueltas este mes', value: stats?.resolvedThisMonth,       icon: CheckCircle2, color: 'emerald' as const, onClick: () => navigate('/kanban') },
+    { title: 'Vulnerabilidades',   value: stats?.totalVulnerabilities,    icon: ShieldAlert,  color: 'amber'   as const, onClick: () => navigate('/kanban?tab=resumen') },
+    { title: 'Abiertas',           value: stats?.openVulnerabilities,     icon: AlertOctagon, color: 'red'     as const, onClick: () => navigate('/kanban?tab=listado'), emphasize: true },
+    { title: 'Críticas',           value: stats?.criticalVulnerabilities, icon: Flame,        color: 'red'     as const, onClick: () => navigate('/kanban?tab=listado&priority=CRITICAL'), emphasize: true },
+    { title: 'Resueltas este mes', value: stats?.resolvedThisMonth,       icon: CheckCircle2, color: 'emerald' as const, onClick: () => navigate('/kanban?tab=listado&triageStatus=RESUELTA') },
   ]
 
   // Nivel 3: severidad pasa de donut a bar horizontal -- mismo lenguaje visual
@@ -278,7 +284,7 @@ export default function Dashboard() {
             Vulnerabilidades prioritarias sin resolver
           </p>
           {attentionList.length > 0 && (
-            <button onClick={() => navigate('/kanban')} className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-0.5">
+            <button onClick={() => navigate('/kanban?tab=listado')} className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-0.5">
               Ver todas <ChevronRight size={12} />
             </button>
           )}
@@ -292,7 +298,7 @@ export default function Dashboard() {
             <ShieldCheck size={16} /> Sin vulnerabilidades críticas o altas pendientes.
           </div>
         ) : (
-          <Table columns={attentionColumns} data={attentionList} onRowClick={() => navigate('/kanban')} />
+          <Table columns={attentionColumns} data={attentionList} onRowClick={() => navigate('/kanban?tab=listado')} />
         )}
       </div>
 

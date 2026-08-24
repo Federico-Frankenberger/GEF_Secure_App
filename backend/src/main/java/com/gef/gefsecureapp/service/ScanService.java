@@ -14,6 +14,7 @@ import com.gef.gefsecureapp.repository.SoftwareComponentRepository;
 import com.gef.gefsecureapp.repository.UserRepository;
 import com.gef.gefsecureapp.security.CurrentUser;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ScanService {
 
     private final ScanReportRepository scanReportRepository;
@@ -118,9 +120,24 @@ public class ScanService {
      *  faltante (ver ScanReportRepository.findLatestAutomatic). startedAt=executedAt=now()
      *  porque no existe un evento de "inicio" real para este camino (a diferencia de start(),
      *  que crea el ScanReport ANTES de disparar n8n) -- se documenta como aproximacion conocida. */
+    // Fix 0 (docs/bitacora/24-08-26/plan_fix_bucle_reapertura_vulnerabilidades.md): ver
+    // comentario de existsByAutomaticScanTrueAndExecutedAtAfter en ScanReportRepository.
+    private static final long AUTOMATIC_COMPLETION_DEDUP_MINUTES = 60;
+
     @Transactional
     public ScanReport completeAutomatic(ScanCompletionPayload payload) {
         LocalDateTime now = LocalDateTime.now();
+
+        if (scanReportRepository.existsByAutomaticScanTrueAndExecutedAtAfter(
+                now.minusMinutes(AUTOMATIC_COMPLETION_DEDUP_MINUTES))) {
+            log.warn("completeAutomatic(): entrega duplicada del webhook automatico ignorada " +
+                    "(ya hay un ScanReport automatico completado en los ultimos {} minutos)",
+                    AUTOMATIC_COMPLETION_DEDUP_MINUTES);
+            return scanReportRepository.findLatestAutomatic()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "existsByAutomaticScanTrueAndExecutedAtAfter=true pero findLatestAutomatic() vacio"));
+        }
+
         ScanReport scan = ScanReport.builder()
                 .startedAt(now)
                 .executedAt(now)
