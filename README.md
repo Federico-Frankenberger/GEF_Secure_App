@@ -58,10 +58,42 @@ evaluarlo en minutos.
 
 ## Screenshots
 
-Todavía no hay capturas versionadas en el repositorio. Se recomienda incorporar, en este
-orden de prioridad: **Dashboard** (vista general de KPIs), **módulo de Vulnerabilidades**
-(vista Resumen y Kanban), **Centro de Escaneos** (progreso de un escaneo en curso) y la
-**Landing** pública.
+Capturadas contra el stack real (`docker compose up -d`, datos de ejemplo del seed) — no
+son mockups.
+
+<table>
+<tr>
+<td width="50%">
+
+**Dashboard**
+![Dashboard](docs/screenshots/dashboard.png)
+
+</td>
+<td width="50%">
+
+**Vulnerabilidades — Resumen**
+![Resumen de Vulnerabilidades](docs/screenshots/vulnerabilidades-resumen.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Vulnerabilidades — Kanban**
+![Kanban de Vulnerabilidades](docs/screenshots/vulnerabilidades-kanban.png)
+
+</td>
+<td width="50%">
+
+**Centro de Escaneos**
+![Centro de Escaneos](docs/screenshots/escaneos.png)
+
+</td>
+</tr>
+</table>
+
+**Landing pública**
+![Landing](docs/screenshots/landing.png)
 
 ## Cómo funciona
 
@@ -85,7 +117,7 @@ flowchart LR
 5. **El analista trabaja el hallazgo** desde el módulo de Vulnerabilidades, moviéndolo `Detectada → En Análisis → Resuelta` y cerrándolo con justificación estilo VEX cuando corresponde.
 6. **n8n notifica por Slack** el resultado, y el **Dashboard** agrega MTTR, aging y breakdowns en tiempo real.
 
-Detalle completo del pipeline (50 nodos) en [`docs/architecture/04-n8n-pipeline.md`](docs/architecture/04-n8n-pipeline.md).
+Detalle completo del pipeline (49 nodos) en [`docs/architecture/04-n8n-pipeline.md`](docs/architecture/04-n8n-pipeline.md).
 
 ## Arquitectura
 
@@ -203,14 +235,18 @@ está implícita.
 ## Testing
 
 ```bash
-# Backend — Gradle, 23 archivos de test (servicios con repos mockeados, mappers, un @DataJpaTest)
+# Backend — Gradle, 32 archivos de test / 252 tests (servicios con repos mockeados, mappers,
+# un @DataJpaTest y un par de @SpringBootTest de integración real para bugs de transacciones/concurrencia)
 cd backend && ./gradlew test
 
 # Frontend — Vitest + Testing Library, 5 archivos / 11 tests, todos regresión de un bug real
 cd frontend && npm run test
+
+# n8n — Vitest, lógica crítica embebida en los Code nodes (compareVersions, fallback de identidad CVE/GHSA)
+cd workflows/tests && npm install && npm test
 ```
 
-Ambas suites corren en cada push/PR vía GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+Las 3 suites corren en cada push/PR vía GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml), jobs `backend`/`frontend`/`n8n-logic`).
 Detalle de qué cubre cada suite en [`backend/README.md`](backend/README.md) y
 [`frontend/README.md`](frontend/README.md).
 
@@ -225,20 +261,25 @@ GEF_Secure_App/
 ├── workflows/           Workflow de n8n versionado en git
 ├── init/                Scripts SQL de inicialización de Postgres
 ├── scripts/             Backup y restore de Postgres/n8n
-├── docs/                Arquitectura, ADRs, glosario, deuda técnica
+├── docs/                Arquitectura, ADRs, glosario, deuda técnica, casos de uso, operación
 ├── knowledge-base/      Base de conocimiento del proyecto
-└── docker-compose.yml
+├── docker-compose.yml       Entorno de desarrollo/demo local
+└── docker-compose.prod.yml  Perfil de producción (probado en ejecución, ver docs/operations/deployment.md)
 ```
 
 ## Documentación
 
-- [Arquitectura](docs/architecture/README.md) — qué es cada módulo y cómo se conectan
+Índice completo y navegable en [`docs/README.md`](docs/README.md). Accesos directos:
+
+- [Arquitectura](docs/architecture/README.md) — qué es cada módulo y cómo se conectan, con diagramas
 - [Decisiones de diseño (ADRs)](docs/adr/README.md) — por qué se tomó cada decisión relevante
+- [Casos de uso](docs/use-cases/) — procesos de negocio principales de punta a punta
+- [Operación](docs/operations/) — despliegue y troubleshooting
 - [CHANGELOG](CHANGELOG.md)
 - [SECURITY](SECURITY.md) — modelo de amenazas (STRIDE) y controles implementados
 - [Glosario](docs/glosario.md)
 - [Deuda técnica](docs/deuda-tecnica.md) — gaps conocidos, con lo ya cerrado y cómo
-- [Base de conocimiento](knowledge-base/README.md)
+- [Base de conocimiento](knowledge-base/README.md) — visión, roles, reglas de negocio, historias de usuario
 - READMEs por módulo: [backend](backend/README.md) · [frontend](frontend/README.md) · [n8n](n8n/README.md)
 
 ## Roadmap

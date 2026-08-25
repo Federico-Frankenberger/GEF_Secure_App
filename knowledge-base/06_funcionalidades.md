@@ -112,26 +112,41 @@ no es la única vista de este módulo, es una de cuatro.
 
 **Reglas relacionadas**: RN-VUL-06
 
-### US-008 — Exportar reportes PDF
-**Como** SECURITY_ANALYST
-**Quiero** exportar un reporte ejecutivo, por escaneo, por comparación o por CVE
+### US-008 — Exportar reportes PDF desde el Centro de Informes
+**Como** ADMIN, SECURITY_ANALYST o AUDITOR
+**Quiero** exportar un reporte ejecutivo, de remediación, por escaneo, por comparación, por CVE/GHSA (con preview antes de exportar) o de análisis de vulnerabilidades por período
 **Para** compartir el estado de seguridad fuera del sistema
 
 **Criterios de aceptación**:
 - [ ] CA-1: timeout de exportación de 30s (mayor al resto de la API, por el costo de generar PDF)
+- [ ] CA-2: el Resumen Ejecutivo no duplica los KPIs del Dashboard general — muestra indicadores propios (activos con exposición, explotación conocida, nuevas/resueltas en 7 días, cumplimiento de SLA, CISA KEV)
+- [ ] CA-3: `ASSET_OWNER` no tiene acceso a ningún endpoint de `/api/reports/*` (agregan datos de toda la organización, no solo sus activos)
 
 **Reglas relacionadas**: —
+
+### US-013 — Activar/desactivar un usuario en vez de borrarlo
+**Como** ADMIN
+**Quiero** desactivar un usuario (en vez de borrarlo) cuando tiene historial o asignaciones que preservar
+**Para** no perder trazabilidad ni romper referencias, y poder reactivarlo si vuelve
+
+**Criterios de aceptación**:
+- [ ] CA-1: un usuario desactivado no puede loguearse (mismo mensaje genérico anti-enumeración que credenciales inválidas)
+- [ ] CA-2: un ADMIN no puede desactivarse a sí mismo
+- [ ] CA-3: borrar un usuario con vulnerabilidades asignadas da un mensaje claro de conflicto, no un error genérico de integridad
+
+**Reglas relacionadas**: RN-USR-01, RN-AU-03
 
 ## Épica 5: Administración y RBAC
 
 ### US-009 — Gestionar usuarios y su scoping de activos
 **Como** ADMIN
-**Quiero** crear usuarios con un rol y, si son ASSET_OWNER, asignarles activos específicos
-**Para** limitar el acceso según responsabilidad real
+**Quiero** crear usuarios con un rol y, si son ASSET_OWNER, asignarles activos específicos desde una vista por-usuario (no solo por-activo)
+**Para** limitar el acceso según responsabilidad real, viendo de un vistazo todo lo asignado a una persona
 
 **Criterios de aceptación**:
 - [ ] CA-1: ASSET_OWNER sin asignaciones no ve ningún activo
-- [ ] CA-2: el catálogo de tipos de activo/ecosistemas es editable solo por ADMIN
+- [ ] CA-2: el catálogo de Entornos/Tipos de Host/Ecosistemas es editable solo por ADMIN — `SECURITY_ANALYST`/`AUDITOR` lo ven de solo lectura, `ASSET_OWNER` no accede a Configuración
+- [ ] CA-3: la tabla de usuarios tiene búsqueda por nombre/rol del lado cliente
 
 **Reglas relacionadas**: RN-RBAC-01, RN-RBAC-02
 

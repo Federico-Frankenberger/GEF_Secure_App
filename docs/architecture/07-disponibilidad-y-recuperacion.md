@@ -1,5 +1,9 @@
 # 07 — Disponibilidad y recuperación
 
+Ver también [`docs/operations/deployment.md`](../operations/deployment.md) para el
+estado de la infraestructura de despliegue (`docker-compose.prod.yml`, probada
+en ejecución pero sin un despliegue productivo real todavía).
+
 ## Estado actual (honesto)
 
 El backup sigue siendo **manual** (no hay un cron/scheduler productivo real
@@ -18,7 +22,7 @@ ambiente limpio, que **borra todo el historial** (ver README, sección
 | `pgdata` | Bases `security` (dominio de la app: activos, vulnerabilidades, usuarios, auditoría) y `n8n` (estado interno de n8n) | `vuln_postgres` |
 | `n8n_data` | Configuración de n8n: workflows activos, credenciales resueltas, historial de ejecuciones | `vuln_n8n` |
 
-`init/` (los 26 scripts SQL) no necesita backup — es código versionado en git,
+`init/` (los 30 scripts SQL) no necesita backup — es código versionado en git,
 no estado. Solo `pgdata` y `n8n_data` son estado real que se pierde si se
 destruyen sin respaldo.
 

@@ -19,7 +19,15 @@ Enforzado en el backend vía `@PreAuthorize` por endpoint + una constraint `CHEC
 | ADMIN | CRUD total | CRUD total | CRUD total | Todos | Lectura total |
 | SECURITY_ANALYST | Lectura + disparo de scan | CRUD (triage completo, cierre VEX) | Lectura | Todos | Lectura total |
 | ASSET_OWNER | CRUD solo sobre activos asignados | Lectura/edición limitada a sus activos | — | Limitado a sus activos | — |
-| AUDITOR | Lectura | Lectura | — | Lectura | Lectura total |
+| AUDITOR | Lectura | Lectura | Lectura (Catálogos) | Lectura | Lectura total |
+
+### Excepciones granulares (verificadas contra `@PreAuthorize` real, no la matriz simplificada de arriba)
+
+La matriz de arriba es la vista de alto nivel. A nivel de endpoint, hay 2 categorías que no encajan en una celda simple:
+
+- **Catálogos de configuración sin dato específico de la organización** (`GET /api/environments`, `/api/ecosystems`, `/api/asset-types`, `/api/software-catalog`, `/api/ghsa-advisories/{id}`) y **KPIs agregados sin detalle sensible por activo** (`GET /api/dashboard/stats`) — sin `@PreAuthorize` propio: accesibles a **cualquier rol autenticado**, incluido `ASSET_OWNER`, a propósito (auditado en DT-04 — no es una fuga, es el comportamiento deseado para taxonomía genérica). Las mutaciones (`POST`/`PUT`/`DELETE`) de estos catálogos sí exigen `ADMIN` explícito.
+- **Lectura del propio módulo de Vulnerabilidades** (`GET /api/vulnerabilities`, `/summary`, `/analysis`, `/search`, `/remediation-analysis`, `/scan-result`) y **de escaneos** (`GET /api/scan-reports*`) — tampoco tienen `@PreAuthorize` propio (cualquier autenticado), pero SÍ aplican el scoping de `ASSET_OWNER` a nivel de servicio (nunca ven datos fuera de sus activos asignados). Las mutaciones (`PATCH /{id}/status`, `DELETE /{id}`) sí excluyen a `AUDITOR`/`ASSET_OWNER` vía `@PreAuthorize` explícito.
+- `ReportController` (Informes) es la única excepción a "AUDITOR = solo lectura de todo": sus 7 endpoints exigen `hasAnyRole('ADMIN','SECURITY_ANALYST','AUDITOR')` explícito, dejando a `ASSET_OWNER` afuera incluso de lectura (los informes agregan datos de toda la organización, no solo los activos propios de un `ASSET_OWNER`).
 
 ## Rutas públicas (sin autenticación)
 

@@ -10,7 +10,7 @@ Descriptiva (sistema ya implementado), no aspiracional. Detalle completo en `doc
 | Auditoría append-only | `VulnerabilityAudit`, `RemediationCycle`, `StateTransition` | Trazabilidad defendible, nunca se edita historia (ADR-0008) |
 | Motor externo de scoring | Pipeline n8n, no en el backend | Iterar la lógica de riesgo sin redeployar el sistema de registro (ADR-0003) |
 | RBAC + scoping por fila | `@PreAuthorize` + `user_asset_assignments` | Autorización real solo en backend, nunca confiar en el cliente (ADR-0006) |
-| Esquema vía scripts SQL idempotentes | `init/00`→`init/25`, sin Flyway/Liquibase | Adecuado al modelo de despliegue real: un solo volumen fresco, no multi-entorno con migraciones incrementales (ADR-0002) |
+| Esquema vía scripts SQL idempotentes | `init/00`→`init/29`, sin Flyway/Liquibase | Adecuado al modelo de despliegue real: un solo volumen fresco, no multi-entorno con migraciones incrementales (ADR-0002) |
 | Secreto compartido para servicio interno | `X-Internal-Token` en `/api/webhook/*` | n8n es confiable pero no es un usuario, no amerita JWT (ADR-0007) |
 
 ## Estructura de directorios
@@ -32,7 +32,7 @@ GEF_Secure_App/
 │       └── validation/
 ├── frontend/
 │   └── src/
-│       ├── pages/         (Dashboard, Assets, Kanban, Scans, Login, Informes, Settings)
+│       ├── pages/         (Landing, Login, Dashboard, Assets, Kanban, Scans, Informes, Settings)
 │       ├── components/
 │       ├── contexts/       (AuthContext)
 │       ├── hooks/          (useScanPolling)
@@ -41,8 +41,10 @@ GEF_Secure_App/
 ├── n8n/                    (Dockerfile + bootstrap.sh)
 ├── n8n-provisioning/        (credenciales placeholder)
 ├── workflows/               (pipeline n8n versionado)
-├── init/                    (26 scripts SQL, 00→25)
-├── docs/architecture/, docs/adr/  (documentación)
+├── init/                    (30 scripts SQL, 00→29)
+├── docker-compose.yml       (dev/demo local)
+├── docker-compose.prod.yml  (perfil de producción, probado en ejecución)
+├── docs/architecture/, docs/adr/, docs/use-cases/, docs/operations/  (documentación)
 └── knowledge-base/          (este directorio)
 ```
 

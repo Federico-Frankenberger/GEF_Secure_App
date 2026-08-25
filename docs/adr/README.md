@@ -16,6 +16,7 @@ Un ADR no describe *cómo* funciona el sistema (eso vive en [`docs/architecture/
 | [0006](0006-rbac-con-scoping-por-asset-owner.md) | RBAC de 4 roles con scoping adicional para ASSET_OWNER | Accepted |
 | [0007](0007-token-interno-compartido-para-webhook-n8n.md) | Token interno compartido para el webhook n8n → backend | Accepted |
 | [0008](0008-auditoria-inmutable-append-only.md) | Auditoría inmutable y append-only para hallazgos y cambios de estado | Accepted |
+| [0009](0009-sin-libreria-de-estado-global-en-frontend.md) | Sin librería de estado global en el frontend (Context API + estado local) | Accepted — justificación histórica pendiente de validación humana |
 
 ## Cómo proponer un ADR nuevo
 

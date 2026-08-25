@@ -20,7 +20,7 @@ Esto funciona porque el modelo de despliegue real del proyecto es "volumen de Po
 
 **Positive**
 - Cero dependencias adicionales (no hace falta Flyway/Liquibase en el `build.gradle` ni tablas de control de versión de esquema como `flyway_schema_history`).
-- El historial de scripts numerados *es* el changelog del modelo de datos: leer `init/00` a `init/25` en orden cuenta la evolución completa del dominio (ver `docs/architecture/05-database.md`).
+- El historial de scripts numerados *es* el changelog del modelo de datos: leer `init/00` a `init/29` en orden cuenta la evolución completa del dominio (ver `docs/architecture/05-database.md`).
 - Simplicidad total para el caso de uso real: `docker compose down -v && docker compose up -d` reconstruye el esquema completo desde cero de forma determinística.
 
 **Negative**

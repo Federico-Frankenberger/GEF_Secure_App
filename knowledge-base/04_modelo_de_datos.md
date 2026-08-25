@@ -1,6 +1,6 @@
 # Modelo de Datos
 
-Fuente: entidades JPA reales (`backend/src/main/java/com/gef/gefsecureapp/model/`) + 26 scripts SQL en `init/00`→`init/25` (ver evolución completa en `docs/architecture/05-database.md`). Sin Flyway/Liquibase — `ddl-auto=validate` (ver ADR-0002).
+Fuente: entidades JPA reales (`backend/src/main/java/com/gef/gefsecureapp/model/`) + 30 scripts SQL en `init/00`→`init/29` (ver evolución completa en `docs/architecture/05-database.md`). Sin Flyway/Liquibase — `ddl-auto=validate` (ver ADR-0002).
 
 ## Dominios
 

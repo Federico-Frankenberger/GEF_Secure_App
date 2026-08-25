@@ -4,9 +4,9 @@ Ver ADR-0002 para por qué el esquema se gestiona con scripts SQL manuales en ve
 
 ## Modelo de gestión del esquema
 
-`spring.jpa.hibernate.ddl-auto=validate` — Hibernate **valida** que las entidades coincidan con el esquema, pero nunca lo modifica. El esquema completo es propiedad de **26 scripts SQL idempotentes** en `init/`, montados en Postgres vía `docker-entrypoint-initdb.d` y ejecutados **una sola vez**, contra un volumen de base de datos nuevo. Si cambia el esquema, agregar un script nuevo numerado — no se puede depender de que Hibernate genere DDL, y los scripts existentes no se re-ejecutan contra una base ya inicializada (hay que migrarla a mano si ya existe, según lo señalan los propios comentarios de los scripts).
+`spring.jpa.hibernate.ddl-auto=validate` — Hibernate **valida** que las entidades coincidan con el esquema, pero nunca lo modifica. El esquema completo es propiedad de **30 scripts SQL idempotentes** en `init/`, montados en Postgres vía `docker-entrypoint-initdb.d` y ejecutados **una sola vez**, contra un volumen de base de datos nuevo. Si cambia el esquema, agregar un script nuevo numerado — no se puede depender de que Hibernate genere DDL, y los scripts existentes no se re-ejecutan contra una base ya inicializada (hay que migrarla a mano si ya existe, según lo señalan los propios comentarios de los scripts).
 
-## Línea de tiempo del esquema (`init/00` → `init/25`)
+## Línea de tiempo del esquema (`init/00` → `init/29`)
 
 Los nombres de archivo son, en la práctica, el changelog del modelo de datos:
 
@@ -38,6 +38,10 @@ Los nombres de archivo son, en la práctica, el changelog del modelo de datos:
 | `23` | Datos estructurados de GHSA |
 | `24` | Normaliza `assigned_to` a FK sobre `users` |
 | `25` | Flag manual `exposed` en `assets` |
+| `26` | Flag `is_automatic_scan` en `scan_reports` — distingue el escaneo global diario disparado por n8n (`Scan_Scheduler`) de uno disparado por un usuario |
+| `27` | Seed de datos enriquecido para demo (más activos/vulnerabilidades en distintos estados que el seed original de `02`) |
+| `28` | Flag `active` en `users` — permite desactivar un usuario (en vez de borrarlo) sin perder sus asignaciones/historial |
+| `29` | Columna `version` en `asset_vulnerabilities` — locking optimista de JPA (`@Version`) contra escrituras concurrentes sobre el mismo hallazgo (ej. dos escaneos con alcance solapado) |
 
 Ver `02-backend.md` para el detalle de cada entidad JPA correspondiente, y `06-vulnerability-lifecycle.md` para el detalle funcional de `19`, `20` y `22` (el corazón del modelo de ciclo de vida).
 
@@ -57,7 +61,9 @@ Environment ──┐
                        (detectionStatus,   │
                         triageStatus,      └──▶ StateTransition (1:N, append-only)
                         outcome VEX,
-                        priorityVariables)
+                        priorityVariables,
+                        version -- @Version,
+                        locking optimista)
                                 │
                                 ▼
                       VulnerabilityAudit (1:N, inmutable, por scan)

@@ -9,7 +9,7 @@ Formalizadas como ADRs en `docs/adr/` — acá solo el resumen ejecutivo, ir a c
 **Trade-off aceptado**: un token emitido sigue válido hasta expirar aunque el usuario se borre o cambie de rol mientras tanto.
 
 ### DD-02 — Esquema SQL manual, sin herramienta de migraciones (ADR-0002)
-**Decisión**: 26 scripts SQL idempotentes en `init/`, `ddl-auto=validate`, sin Flyway/Liquibase.
+**Decisión**: 30 scripts SQL idempotentes en `init/`, `ddl-auto=validate`, sin Flyway/Liquibase.
 **Trade-off aceptado**: no hay historial de migraciones versionado por herramienta; el orden y la idempotencia dependen de la disciplina de nombrar los archivos secuencialmente.
 
 ### DD-03 — n8n como motor externo de scoring (ADR-0003)

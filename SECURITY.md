@@ -59,8 +59,8 @@ Aplicado a los componentes reales del sistema (ver
 | **S**poofing | Alguien se hace pasar por n8n para inyectar hallazgos falsos vía `/api/webhook/*` | `X-Internal-Token` compartido (ver ADR-0007) — mitiga spoofing externo, no protege si el token se filtra |
 | **T**ampering | Modificar un JWT para escalar de `AUDITOR` a `ADMIN` | Firma HMAC del JWT (`jwt.secret`) — un token no puede alterarse sin invalidar la firma |
 | **R**epudiation | Un analista niega haber cerrado un hallazgo con un outcome VEX incorrecto | `StateTransition`/`RemediationCycle` append-only con actor y evidencia (ver ADR-0008) — da rastro, aunque no hay firma criptográfica del registro |
-| **I**nformation disclosure | Un `ASSET_OWNER` lee vulnerabilidades de activos que no le pertenecen | Scoping vía `user_asset_assignments` (ver ADR-0006) — aplicado a nivel de query, no verificado exhaustivamente en todos los endpoints (ver `docs/deuda-tecnica.md`, DT-04) |
-| **D**enial of service | Un cliente satura `/api/scan` o `/api/auth/login` con requests | **Sin mitigación implementada** — no hay rate limiting (ver `docs/deuda-tecnica.md`, DT-08) |
+| **I**nformation disclosure | Un `ASSET_OWNER` lee vulnerabilidades de activos que no le pertenecen | Scoping vía `user_asset_assignments` (ver ADR-0006), aplicado a nivel de servicio en todos los endpoints que exponen datos por activo — auditado endpoint por endpoint sin fugas encontradas (ver `docs/deuda-tecnica.md`, DT-04, cerrado) |
+| **D**enial of service | Un cliente satura `/api/auth/login` con intentos de fuerza bruta | `LoginRateLimitFilter` (10 intentos/min por IP, en memoria) acotado a login — el resto de la API ya exige JWT válido (ver `docs/deuda-tecnica.md`, DT-08, cerrado) |
 | **E**levation of privilege | Un usuario borrado o con rol cambiado sigue actuando con permisos viejos hasta que su JWT expira | Aceptado conscientemente como límite de alcance (ver ADR-0001) — no hay revocación |
 
 Activos críticos: la base `security` (datos de vulnerabilidades/activos/usuarios)
@@ -76,17 +76,21 @@ o la legibilidad de las credenciales guardadas por n8n.
 | CSRF | Deshabilitado a propósito — API stateless autenticada por JWT, no por cookies de sesión, así que CSRF no aplica de la forma clásica |
 | Hash de contraseñas | BCrypt |
 | HTTPS/TLS | No terminado por la app — se asume un reverse proxy delante en cualquier despliegue real; no configurado en este repo |
-| Rate limiting | **No implementado** (ver `docs/deuda-tecnica.md`, DT-08) |
-| Headers de seguridad (CSP, HSTS, etc.) | **No configurados explícitamente** |
+| Rate limiting | Implementado en `/api/auth/login` (10 intentos/min por IP, ver `docs/deuda-tecnica.md`, DT-08, cerrado) |
+| Headers de seguridad (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) | Configurados en `frontend/nginx.conf`. **HSTS no se configura a propósito**: este nginx sirve HTTP plano y no termina TLS — HSTS debe agregarse en el reverse proxy real que sí termine TLS en un despliegue productivo (ver `docs/operations/deployment.md`) |
 | Sanitización / validación de entradas | Vía Bean Validation (`@Valid` + DTOs) en los controllers |
 
 ## Gestión de vulnerabilidades del propio proyecto
 
 Dato relevante para un proyecto que trata justamente sobre gestión de
-vulnerabilidades: hoy **no se aplica a sí mismo** ninguna práctica automatizada.
-No hay Dependabot, Snyk, ni SAST corriendo sobre este repositorio — el control
-de dependencias es manual (ver `docs/deuda-tecnica.md`, DT-07). Es una
-limitación reconocida, no un descuido oculto.
+vulnerabilidades: este repositorio ya se aplica sus propias prácticas de
+higiene de dependencias y código. `.github/dependabot.yml` (Gradle + npm +
+GitHub Actions, semanal) y `.github/workflows/codeql.yml` (SAST para Java y
+TypeScript, en cada push/PR a `main` más una corrida semanal) — ver
+`docs/deuda-tecnica.md`, DT-07, cerrado. Pendiente de una acción fuera del
+alcance del código: Dependabot alerts y code scanning deben estar habilitados
+en la configuración de seguridad del repositorio en GitHub para que estos
+archivos tengan efecto una vez pusheados.
 
 ## Reporte de vulnerabilidades
 

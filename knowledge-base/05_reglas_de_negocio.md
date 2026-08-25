@@ -27,6 +27,11 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
 
 - **RN-AU-01**: los tokens JWT son autocontenidos y sin estado — no hay lista de revocación ni verificación contra la base en cada request. Un token emitido sigue siendo válido hasta que vence (`jwt.expiration-minutes`, 8h por defecto) aunque el usuario se borre o cambie de rol mientras tanto (ver ADR-0001, decisión consciente de alcance).
 - **RN-AU-02**: las llamadas de n8n hacia el backend (`/api/webhook/*`) no usan JWT — usan un secreto compartido en el header `X-Internal-Token`, porque n8n es un servicio interno de confianza, no un cliente de usuario final (ver ADR-0007).
+- **RN-AU-03**: `POST /api/auth/login` está limitado a 10 intentos por minuto por IP (`LoginRateLimitFilter`, en memoria) — un intento con credenciales válidas durante el bloqueo también se rechaza (el límite es por IP, no por usuario). Un usuario con `active=false` recibe el mismo mensaje genérico de credenciales inválidas que un usuario/contraseña incorrectos, para no filtrar por qué falló el login.
+
+## Dominio: Gestión de usuarios (RN-USR)
+
+- **RN-USR-01**: un usuario se desactiva (`active=false`, `PATCH /api/users/{id}/active`), no se borra, cuando tiene historial/asignaciones que preservar — el borrado físico sigue existiendo pero es la opción secundaria. Un ADMIN no puede desactivarse a sí mismo (evita bloqueo accidental de la única cuenta con acceso).
 
 ## Dominio: Excepciones globales
 
