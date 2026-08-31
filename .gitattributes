@@ -1,0 +1,4 @@
+# Los scripts POSIX deben mantener terminadores LF sin importar el checkout
+# (Windows con autocrlf rompe el shebang #!/bin/sh dentro de contenedores Alpine).
+*.sh text eol=lf
+gradlew text eol=lf
