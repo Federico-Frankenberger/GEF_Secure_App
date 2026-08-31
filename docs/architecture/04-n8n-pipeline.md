@@ -47,9 +47,6 @@ Check_Internal_Assets (Postgres)
 Filter_Matched_Assets / Validate_Asset_Match  (cruce contra el inventario real)
         │
         ▼
-Log_Ignored_Vulnerabilities  (whitelist de exclusiones)
-        │
-        ▼
 Risk_Assessment_Engine  (Code node — CVSS + criticidad de entorno + CISA KEV + zero-day)
         │
         ▼

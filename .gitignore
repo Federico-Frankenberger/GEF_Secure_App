@@ -33,6 +33,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Tooling de agente IA (Claude Code) -- config local, no forma parte del proyecto
+.claude/
+
 # DT-06 (docs/deuda-tecnica.md): destino por defecto de scripts/backup.sh --
 # dumps de Postgres y el volumen de n8n, nunca deberían versionarse en git.
 backups/

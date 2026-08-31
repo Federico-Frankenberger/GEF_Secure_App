@@ -30,7 +30,7 @@ Login.tsx → localStorage.set(gef_token) → redirect a ruta protegida
 **Pasos**:
 1. Backend (`N8nWebhookService`) o el scheduler de n8n disparan el pipeline (`POST /webhook/auditoria-automatizada` con `{activo_name, entorno, scan_id}` si viene del backend).
 2. n8n hace fetch a GitHub Advisory DB + CISA KEV, deduplica, sincroniza el catálogo de software.
-3. n8n cruza los hallazgos contra el inventario real (`Check_Internal_Assets`, `Filter_Matched_Assets`) y descarta lo que está en la whitelist (`Log_Ignored_Vulnerabilities`).
+3. n8n cruza los hallazgos contra el inventario real (`Check_Internal_Assets`, `Filter_Matched_Assets`, `Validate_Asset_Match`).
 4. `Risk_Assessment_Engine` (nodo Code) calcula prioridad combinando CVSS + criticidad del entorno + CISA KEV + zero-day.
 5. n8n persiste los hallazgos (`Persist_Audit_Findings`) y llama de vuelta al backend (`POST /api/webhook/vulnerabilities`, autenticado con `X-Internal-Token`) para que el sistema de registro quede actualizado.
 6. Backend aplica la lógica de ciclo de vida (`VulnerabilityAuditService.applyLifecycle`): crea o reabre `AssetVulnerability`, registra `VulnerabilityAudit`.

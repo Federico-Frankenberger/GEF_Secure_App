@@ -21,7 +21,6 @@ Fetch_CISA_KEV ─┐
 Fetch_GitHub_Advisories ─┘
    → Sync_Software_Catalog (Postgres)
    → Check_Internal_Assets (Postgres) → Filter_Matched_Assets / Validate_Asset_Match
-   → Log_Ignored_Vulnerabilities (whitelist)
    → Risk_Assessment_Engine (nodo Code: CVSS + criticidad de entorno + CISA KEV + zero-day)
    → Persist_Audit_Findings + Update_Asset_Audit_Timestamp (Postgres)
    → Compute_Audit_Metrics
