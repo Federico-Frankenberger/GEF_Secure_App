@@ -9,8 +9,8 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -656,
-        -416
+        -1120,
+        -300
       ],
       "typeVersion": 1,
       "id": "8b5301ff-6000-450f-9b1f-cd66e9800fad",
@@ -23,8 +23,8 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -416,
-        -944
+        -1120,
+        -720
       ],
       "typeVersion": 1,
       "id": "5e98c41c-6666-493a-b186-3b12a9165602",
@@ -37,8 +37,8 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        784,
-        -928
+        -1120,
+        -1120
       ],
       "typeVersion": 1,
       "id": "ae6f6c22-dada-4d08-8e50-8eaa82449173",
@@ -57,8 +57,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.3,
       "position": [
-        -1072,
-        -384
+        -1100,
+        -50
       ],
       "id": "00be6078-6f4e-46f3-9f6f-c71363772598",
       "name": "Scan_Scheduler"
@@ -94,8 +94,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -528,
-        -304
+        -640,
+        -140
       ],
       "id": "b72c6cb6-8c0d-41cd-8da5-cc8dfcc56eb8",
       "name": "Fetch_CISA_KEV",
@@ -125,8 +125,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -304,
-        -304
+        -410,
+        40
       ],
       "id": "f1963036-bff5-4267-a419-cdab4f619c2f",
       "name": "Fetch_GitHub_Advisories",
@@ -196,8 +196,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        -188,
-        -220
+        -180,
+        40
       ],
       "id": "b1e4f2a8-3c7d-4e91-9a5f-1d6c8e2b4a90",
       "name": "Check_Advisory_Fetch_Error"
@@ -211,8 +211,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        -188,
-        -80
+        50,
+        -140
       ],
       "id": "c2f5a3b9-4d8e-4f02-8b6a-2e7d9f3c5b01",
       "name": "Log_Advisory_Fetch_Error",
@@ -234,8 +234,8 @@
       "type": "n8n-nodes-base.splitOut",
       "typeVersion": 1,
       "position": [
-        -48,
-        -432
+        50,
+        40
       ],
       "id": "c5807694-5903-4d2b-8e8e-cf5610273a1a",
       "name": "Extract_Advisory_Items"
@@ -249,8 +249,8 @@
       "type": "n8n-nodes-base.removeDuplicates",
       "typeVersion": 2,
       "position": [
-        224,
-        -432
+        280,
+        40
       ],
       "id": "c54f653c-ea11-4d84-b191-373cbf92e3e0",
       "name": "Deduplicate_Advisories"
@@ -264,8 +264,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        224,
-        -600
+        510,
+        -50
       ],
       "id": "b2f0a6b1-6e2c-4b8a-9b1e-3f6a2c9d7e41",
       "name": "Sync_Software_Catalog",
@@ -286,8 +286,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        112,
-        -224
+        510,
+        130
       ],
       "id": "f3f86ae5-3238-41c7-bb73-41cd0d9b01ad",
       "name": "Check_Internal_Assets",
@@ -357,8 +357,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        320,
-        -224
+        740,
+        40
       ],
       "id": "12d83bef-bae1-4147-9f1c-2aa430e587d1",
       "name": "Filter_Matched_Assets"
@@ -372,8 +372,8 @@
       "type": "n8n-nodes-base.removeDuplicates",
       "typeVersion": 2,
       "position": [
-        528,
-        -224
+        970,
+        40
       ],
       "id": "7c22a8fe-2726-4d8f-83f5-03e53c3346ee",
       "name": "Deduplicate_Target_Assets"
@@ -396,8 +396,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        672,
-        -416
+        1200,
+        40
       ],
       "id": "e34a3ecd-7c53-4ee9-869d-287513e03da9",
       "name": "Enrich_Vulnerability_Data"
@@ -459,8 +459,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        880,
-        -240
+        1430,
+        40
       ],
       "id": "f871ebab-8ccc-4b03-9ec7-3b4c8e3c5c3b",
       "name": "Validate_Asset_Match"
@@ -474,8 +474,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1392,
-        -384
+        1660,
+        -50
       ],
       "id": "81b51505-b7c7-4836-be0b-4bf83cd36ceb",
       "name": "Log_Ignored_Vulnerabilities",
@@ -494,8 +494,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1392,
-        -160
+        1660,
+        130
       ],
       "id": "4a5f1faf-0ff7-44b9-9c24-f6eaef9c476c",
       "name": "Risk_Assessment_Engine"
@@ -509,8 +509,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1392,
-        96
+        1890,
+        -50
       ],
       "id": "4cffc514-9b09-4344-91bd-89ccc3ad8a42",
       "name": "Persist_Audit_Findings",
@@ -634,8 +634,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1392,
-        288
+        2120,
+        130
       ],
       "id": "bbd49770-d7ad-45f8-867c-c4a2e3a24fb2",
       "name": "Update_Asset_Audit_Timestamp",
@@ -653,8 +653,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        1664,
-        -240
+        2350,
+        40
       ],
       "id": "4c528bcd-7462-4aa0-9f4f-9f06e80e7e57",
       "name": "Consolidate_Audit_Results"
@@ -666,8 +666,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        112,
-        -400
+        50,
+        220
       ],
       "id": "a3d7e6c1-2f48-4b9a-9c3e-6d8f0b1a5e2d",
       "name": "Mark_Advisory_Fetch_Error"
@@ -679,8 +679,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1872,
-        -240
+        2580,
+        40
       ],
       "id": "57f6b115-05d5-4201-88ef-2ea65097e6b1",
       "name": "Compute_Audit_Metrics"
@@ -699,8 +699,8 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        2576,
-        -464
+        3730,
+        -140
       ],
       "id": "59764e24-1945-4027-b21d-d9f41bae6720",
       "name": "Notify_Security_Status",
@@ -737,8 +737,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        1872,
-        96
+        3270,
+        -50
       ],
       "id": "bb0e0541-e55a-416f-b030-515d56f82512",
       "name": "Persist_Scan_Statistics"
@@ -750,8 +750,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1872,
-        288
+        -640,
+        40
       ],
       "id": "d4a2e6e1-9b7a-4c8f-8e5b-2a6f1c9d3b7e",
       "name": "Compute_Empty_Fallback_Metrics"
@@ -761,8 +761,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        2016,
-        -80
+        2810,
+        40
       ],
       "id": "f7c3d8b2-1e4a-4f9c-a3d6-7b8e2f0c5a91",
       "name": "Choose_Final_Metrics"
@@ -774,8 +774,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2160,
-        -80
+        3040,
+        40
       ],
       "id": "a8e5f3c7-4d2b-4a1e-9c6f-8b3d5e7a2c94",
       "name": "Pick_Real_Or_Fallback_Metrics"
@@ -807,8 +807,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2300,
-        -168
+        3270,
+        130
       ],
       "id": "e1d2c3b4-5a6f-4b7c-8d9e-0f1a2b3c4d5e",
       "name": "Is_Automatic_Scan"
@@ -818,8 +818,8 @@
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
       "position": [
-        864,
-        -768
+        -1100,
+        -900
       ],
       "id": "2497eef3-9f44-409a-ab55-8bb7cfbe2279",
       "name": "Error_Trigger"
@@ -833,8 +833,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1216,
-        -896
+        -840,
+        -975
       ],
       "id": "70c5d438-b876-47a9-a20c-a1660981429d",
       "name": "Log_System_Failure",
@@ -860,8 +860,8 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        1216,
-        -688
+        -840,
+        -825
       ],
       "id": "57197173-958c-4c1e-ad7e-d92280231da7",
       "name": "Notify_Dev_Slack",
@@ -882,8 +882,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -1072,
-        -208
+        -1100,
+        130
       ],
       "id": "dd5fa564-adf7-4de0-8b7e-49d92dbc612d",
       "name": "Webhook",
@@ -918,8 +918,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -736,
-        -304
+        -870,
+        40
       ],
       "id": "48b761bb-74ba-499c-b140-2f7186df1ace",
       "name": "Edit Fields"
@@ -933,8 +933,8 @@
       "type": "n8n-nodes-base.removeDuplicates",
       "typeVersion": 2,
       "position": [
-        1184,
-        288
+        1890,
+        130
       ],
       "id": "3ff1b476-6f14-4ece-8608-7006a0edcc8b",
       "name": "Remove Duplicates"
@@ -1018,8 +1018,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        2160,
-        -256
+        3500,
+        40
       ],
       "id": "5a31d594-73a3-4ddd-bf3b-1e21dbea2834",
       "name": "Switch1"
@@ -1038,8 +1038,8 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        2576,
-        -240
+        3730,
+        40
       ],
       "id": "804bc076-5dbb-4964-8d89-fd88e1af4268",
       "name": "Notify_Security_Status1_entorno",
@@ -1065,8 +1065,8 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        2576,
-        16
+        3730,
+        220
       ],
       "id": "6d0d8229-c430-4b13-be0a-3546bc1210ce",
       "name": "Notify_Security_Status2_activo",
@@ -1087,8 +1087,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        -616,
-        -164
+        -640,
+        220
       ],
       "id": "371576b1-91ec-458c-a513-125d3cb1d7c1",
       "name": "Get_Installed_Packages",
@@ -1109,8 +1109,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -608,
-        -560
+        -1100,
+        -500
       ],
       "id": "7bdebf46-8f02-480e-b136-1b037ab27aff",
       "name": "Webhook_Inject_Asset",
@@ -1123,8 +1123,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -398,
-        -560
+        -880,
+        -500
       ],
       "id": "ca14e9ea-ea6c-4886-8e65-75adb898552b",
       "name": "Prepare_Severities"
@@ -1156,8 +1156,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -188,
-        -560
+        -660,
+        -500
       ],
       "id": "ccf5aaf7-b495-4380-856a-33235a09ae06",
       "name": "Fetch_Advisories_By_Severity",
@@ -1179,8 +1179,8 @@
       "type": "n8n-nodes-base.splitOut",
       "typeVersion": 1,
       "position": [
-        22,
-        -560
+        -440,
+        -500
       ],
       "id": "e2c3f81e-07e0-4a6a-a387-f5d9f6e6d7cf",
       "name": "Extract_And_Tag"
@@ -1192,8 +1192,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        232,
-        -560
+        -220,
+        -500
       ],
       "id": "f728e71f-68a9-4418-bd27-351c9e7bcc2a",
       "name": "Build_Candidate_Pool"
@@ -1205,8 +1205,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        442,
-        -560
+        0,
+        -500
       ],
       "id": "07e85428-6031-4a7a-85b5-dc38d3644705",
       "name": "Pick_5_Balanced"
@@ -1220,8 +1220,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        652,
-        -560
+        220,
+        -500
       ],
       "id": "79ff1947-d8a6-48bc-baab-6bb6a96340bf",
       "name": "Insert_Host",
@@ -1240,8 +1240,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        862,
-        -660
+        440,
+        -575
       ],
       "id": "59b3c2b7-a9df-4456-b552-24a3b780034c",
       "name": "Split_Components"
@@ -1255,8 +1255,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1072,
-        -660
+        660,
+        -500
       ],
       "id": "d5d35f56-2ba9-4a88-b1a0-1801ae09e0a1",
       "name": "Insert_Components",
@@ -1281,8 +1281,8 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.4,
       "position": [
-        862,
-        -440
+        440,
+        -425
       ],
       "id": "526ecd0c-41f4-4b2a-ad90-f92b6afd3393",
       "name": "Notify_Injection_Complete",
@@ -1301,8 +1301,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1550,
-        96
+        2120,
+        -50
       ],
       "id": "8d44fe25-d38e-4efb-a026-c75204a6a933",
       "name": "Reattach_Audit_Findings"
